@@ -43,15 +43,6 @@ class _SplashScreenState extends State<SplashScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Column(
             children: [
-              Align(
-                alignment: Alignment.topLeft,
-                child: Text(
-                  'Splash Screen',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: Colors.white70,
-                      ),
-                ),
-              ),
               const Spacer(),
               Image.asset(
                 'assets/images/Logo.png',

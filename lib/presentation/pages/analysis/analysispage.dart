@@ -6,6 +6,12 @@ class AnalysisPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox.expand();
+    return Center(
+      child: Text(
+        'Analysis insights will appear here once data arrives.',
+        style: Theme.of(context).textTheme.bodyMedium,
+        textAlign: TextAlign.center,
+      ),
+    );
   }
 }

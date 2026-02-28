@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Simple placeholder that matches the requested empty state.
 class HomePageContent extends StatelessWidget {
   const HomePageContent({super.key});
 

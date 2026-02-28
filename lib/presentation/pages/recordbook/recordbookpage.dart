@@ -6,6 +6,11 @@ class RecordBookPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox.expand();
+    return Center(
+      child: Text(
+        'Record book content will show here.',
+        style: Theme.of(context).textTheme.bodyMedium,
+      ),
+    );
   }
 }
