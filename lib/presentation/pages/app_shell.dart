@@ -51,65 +51,41 @@ class _AppShellState extends State<AppShell> {
   }
 
   PreferredSizeWidget _buildTopNavigation() {
-    if (_selectedIndex >= _pageBodies.length - 1) {
-      return AppBar(
-        title: const Text('Profile'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
-        elevation: 4,
-      );
-    }
-
+    final titleIndex = _selectedIndex.clamp(0, _navTitles.length - 1);
     return PreferredSize(
-      preferredSize: const Size.fromHeight(78),
-      child: Material(
-        elevation: 4,
-        child: SafeArea(
-          bottom: false,
-          child: Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 12,
-                  offset: Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Row(
-              children: List.generate(_navTitles.length, (index) {
-                final isActive = index == _selectedIndex;
-                return Expanded(
-                  child: GestureDetector(
-                    onTap: () => _setPage(index),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(vertical: 20),
-                      decoration: BoxDecoration(
-                        color: isActive ? const Color(0xFF002D72) : Colors.white,
-                        border: Border(
-                          bottom: BorderSide(
-                            color: isActive ? Colors.blueAccent : Colors.transparent,
-                            width: 3,
-                          ),
-                        ),
-                      ),
-                      child: Text(
-                        _navTitles[index],
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: isActive ? Colors.white : Colors.black87,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            ),
+      preferredSize: const Size.fromHeight(72),
+      child: SafeArea(
+        bottom: false,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.only(left: 20, right: 20, top: 12),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 12,
+                offset: Offset(0, 3),
+              ),
+            ],
           ),
-        ),
+          child: Container(
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              _navTitles[titleIndex],
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF002D72),
+              ),
+            )
+          )
+        )
       ),
     );
   }

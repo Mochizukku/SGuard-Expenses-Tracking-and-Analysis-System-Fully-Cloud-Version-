@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../data/services/fastapi_gateway.dart';
 import '../../../data/services/firebase_service.dart';
+import '../signin_or_signup/loginpage.dart';
 import 'profile_action_page.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -42,11 +43,14 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _signOut() async {
     await _firebase.signOut();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Signed out')),
-      );
-    }
+    if (!mounted) return;
+    setState(() {
+      _profileSummary = null;
+      _error = null;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Signed out')),
+    );
   }
 
   void _openActionPage(String title) {
@@ -125,7 +129,7 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     final user = _firebase.currentUser;
-    final displayName = user?.displayName ?? 'Mo E. Lester';
+    final displayName = user?.displayName ?? 'No Name';
     final role = 'Student';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
@@ -218,9 +222,13 @@ class _ProfilePageState extends State<ProfilePage> {
             () => _openActionPage('Settings'),
           ),
           _buildActionButton(
-            'Sign out',
-            Icons.logout,
-            _signOut,
+            user == null ? 'Log in' : 'Sign out',
+            user == null ? Icons.login : Icons.logout,
+            user == null
+                ? () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const LoginPage()),
+                    )
+                : _signOut,
           ),
         ],
       ),
