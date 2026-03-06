@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../app_shell.dart';
 import 'registerpage.dart';
 import 'resetpasswordpage.dart';
+import '../profile/profilepage.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -91,6 +92,10 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  void _goToProfile() {
+    Navigator.of(context).pop();
+  }
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -146,10 +151,13 @@ class _LoginPageState extends State<LoginPage> {
                               color: Colors.white24,
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Icon(
-                              Icons.arrow_back_ios_new,
-                              color: Colors.white70,
-                              size: 18,
+                            child: IconButton(
+                              onPressed: _goToProfile,
+                              icon: const Icon(
+                                Icons.arrow_back_ios_new,
+                                color: Colors.white70,
+                                size: 18,
+                              ),
                             ),
                           ),
                         ),
@@ -283,10 +291,6 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            TextButton(
-                              onPressed: _goToAppShell,
-                              child: const Text('Continue to application without logging in'),
-                            ),
                             const SizedBox(height: 14),
                             const Divider(height: 20),
                             const SizedBox(height: 8),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'analysis/analysispage.dart';
 import 'home/homepage.dart';
-import 'profile/profile_page.dart';
+import 'profile/profilepage.dart';
 import 'recordbook/recordbookpage.dart';
 
 class AppShell extends StatefulWidget {
@@ -58,7 +58,7 @@ class _AppShellState extends State<AppShell> {
         bottom: false,
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.only(left: 20, right: 20, top: 12),
+          padding: const EdgeInsets.only(left: 20, right: 20, top: 12, bottom: 12),
           decoration: const BoxDecoration(
             color: Colors.white,
             boxShadow: [
@@ -72,10 +72,9 @@ class _AppShellState extends State<AppShell> {
           child: Container(
             height: 44,
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
               borderRadius: BorderRadius.circular(12),
             ),
-            alignment: Alignment.center,
+            alignment: Alignment.centerLeft,
             child: Text(
               _navTitles[titleIndex],
               style: const TextStyle(
@@ -155,7 +154,7 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: _buildTopNavigation(),
+      appBar: _selectedIndex == 3 ? null : _buildTopNavigation(),
       backgroundColor: Colors.white,
       body: _buildPageView(),
       bottomNavigationBar: _buildBottomNavigation(),
