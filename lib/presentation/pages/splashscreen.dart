@@ -35,7 +35,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final background = const Color(0xFF0048B3);
+    final background = const Color(0xFF004AAD);
     return Scaffold(
       backgroundColor: background,
       body: SafeArea(
