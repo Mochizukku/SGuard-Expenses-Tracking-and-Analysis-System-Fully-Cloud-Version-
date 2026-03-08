@@ -15,28 +15,36 @@ class SpendingCategory {
   SpendingCategory({
     required this.name,
     List<SpendingItem>? items,
-    this.isExpanded = false,
+    this.isExpanded = true,
   }) : items = items ?? [];
 
   double get total => items.fold(0, (sum, item) => sum + item.amount);
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'isExpanded': isExpanded,
+        'items': items.map((i) => {'name': i.name, 'amount': i.amount}).toList(),
+      };
+
+  factory SpendingCategory.fromJson(Map<String, dynamic> json) {
+    return SpendingCategory(
+      name: json['name'] as String,
+      isExpanded: json['isExpanded'] as bool? ?? true,
+      items: (json['items'] as List<dynamic>?)?.map((i) {
+        final itemMap = i as Map<String, dynamic>;
+        return SpendingItem(name: itemMap['name'], amount: (itemMap['amount'] as num).toDouble());
+      }).toList(),
+    );
+  }
 }
 
-class RecordBookPage extends StatefulWidget {
-  const RecordBookPage({super.key});
-
-  @override
-  State<RecordBookPage> createState() => _RecordBookPageState();
-}
-
-class _RecordBookPageState extends State<RecordBookPage> {
-  double balance = 0.00;
-  DateTime startDate = DateTime(2026, 1, 1);
-  DateTime endDate = DateTime(2026, 2, 1);
-
-  List<SpendingCategory> categories = [
+class RecordBookData {
+  static double balance = 0.00;
+  static DateTime startDate = DateTime(2026, 1, 1);
+  static DateTime endDate = DateTime(2026, 2, 1);
+  static List<SpendingCategory> categories = [
     SpendingCategory(
       name: 'Billing',
-      isExpanded: true,
       items: [
         SpendingItem(name: 'Water Bill', amount: 250.00),
         SpendingItem(name: 'Electricity Bill', amount: 420.00),
@@ -53,7 +61,16 @@ class _RecordBookPageState extends State<RecordBookPage> {
       items: [],
     ),
   ];
+}
 
+class RecordBookPage extends StatefulWidget {
+  const RecordBookPage({super.key});
+
+  @override
+  State<RecordBookPage> createState() => _RecordBookPageState();
+}
+
+class _RecordBookPageState extends State<RecordBookPage> {
   String _formatDate(DateTime date) {
     const monthNames = [
       "Jan.", "Feb.", "Mar.", "Apr.", "May", "Jun.",
@@ -71,14 +88,14 @@ class _RecordBookPageState extends State<RecordBookPage> {
       transitionDuration: const Duration(milliseconds: 200),
       pageBuilder: (context, animation, secondaryAnimation) {
         return BalanceOverlayDialog(
-          initialBalance: balance,
-          initialStartDate: startDate,
-          initialEndDate: endDate,
+          initialBalance: RecordBookData.balance,
+          initialStartDate: RecordBookData.startDate,
+          initialEndDate: RecordBookData.endDate,
           onConfirm: (newBalance, newStart, newEnd) {
             setState(() {
-              balance = newBalance;
-              startDate = newStart;
-              endDate = newEnd;
+              RecordBookData.balance = newBalance;
+              RecordBookData.startDate = newStart;
+              RecordBookData.endDate = newEnd;
             });
             Navigator.of(context).pop();
           },
@@ -97,7 +114,7 @@ class _RecordBookPageState extends State<RecordBookPage> {
       onConfirm: (val) {
         if (val.trim().isNotEmpty) {
           setState(() {
-            categories.add(SpendingCategory(name: val.trim()));
+            RecordBookData.categories.add(SpendingCategory(name: val.trim()));
           });
         }
       },
@@ -121,7 +138,7 @@ class _RecordBookPageState extends State<RecordBookPage> {
 
   void _deleteCategory(SpendingCategory category) {
     setState(() {
-      categories.remove(category);
+      RecordBookData.categories.remove(category);
     });
   }
 
@@ -274,7 +291,7 @@ class _RecordBookPageState extends State<RecordBookPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '\$${balance.toStringAsFixed(2)}',
+                    '\$${RecordBookData.balance.toStringAsFixed(2)}',
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w500,
@@ -282,7 +299,7 @@ class _RecordBookPageState extends State<RecordBookPage> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${_formatDate(startDate)} - ${_formatDate(endDate)}, ${startDate.year}',
+                    '${_formatDate(RecordBookData.startDate)} - ${_formatDate(RecordBookData.endDate)}, ${RecordBookData.startDate.year}',
                     style: const TextStyle(
                       fontSize: 12,
                       color: Colors.grey,
@@ -302,13 +319,13 @@ class _RecordBookPageState extends State<RecordBookPage> {
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 12),
-          ...categories.map((c) => _buildCategory(c, primaryBlue)),
+          ...RecordBookData.categories.map((c) => _buildCategory(c, primaryBlue)),
           const SizedBox(height: 16),
           Container(
             width: double.infinity,
             height: 44,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Color(0xFF004AAD),
               border: Border.all(color: Colors.grey.shade200),
               boxShadow: [
                 BoxShadow(
@@ -320,10 +337,10 @@ class _RecordBookPageState extends State<RecordBookPage> {
             ),
             child: TextButton.icon(
               onPressed: _addNewCategory,
-              icon: Icon(Icons.add, color: primaryBlue),
+              icon: Icon(Icons.add, color: Colors.white),
               label: const Text(
                 'Add',
-                style: TextStyle(color: Colors.black87, fontSize: 16),
+                style: TextStyle(color: Colors.white, fontSize: 16),
               ),
             ),
           ),

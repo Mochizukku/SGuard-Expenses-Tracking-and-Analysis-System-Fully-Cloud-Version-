@@ -8,7 +8,7 @@ class FastApiGateway {
 
   final http.Client _client;
 
-  static const baseUrl = 'https://your-gateway.example.com/api';
+  static const baseUrl = 'http://127.0.0.1:8000/api';
 
   Future<Map<String, dynamic>> fetchProfileSummary(String userId) async {
     final uri = Uri.parse('$baseUrl/profile-summary/$userId');

@@ -56,9 +56,14 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   InputDecoration _fieldDecoration(String label) {
     return InputDecoration(
       labelText: label,
-      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
+      contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(28),
+        borderSide: const BorderSide(width: 1.5, color: Color(0xFFB8C5D4)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(28),
+        borderSide: const BorderSide(width: 1.5, color: Color(0xFF002D72)),
       ),
     );
   }
@@ -74,93 +79,144 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   Widget build(BuildContext context) {
     const maxWidth = 420.0;
     return Scaffold(
-      backgroundColor: const Color(0xFF0F1629),
+      backgroundColor: const Color(0xFF004AAD),
       appBar: AppBar(
-        title: const Text('Reset Password'),
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFF004AAD),
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new),
-          onPressed: () => Navigator.of(context).pop(),
+        leading: const BackButton(
+          color: Colors.white,
         ),
       ),
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: maxWidth),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(28),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.25),
-                      blurRadius: 24,
-                      offset: const Offset(0, 10),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final formHeight = constraints.maxHeight * 0.60;
+            return SingleChildScrollView(
+              child: SizedBox(
+                height: constraints.maxHeight,
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Image.asset(
+                              'assets/images/Logo.png',
+                              width: 160,
+                              fit: BoxFit.contain,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'SGUARD',
+                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.5,
+                                  ),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: maxWidth,
+                          minHeight: formHeight,
+                        ),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(32),
+                              topRight: Radius.circular(32),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.15),
+                                blurRadius: 24,
+                                offset: const Offset(0, -8),
+                              ),
+                            ],
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+                            child: Form(
+                              key: _formKey,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  TextFormField(
+                                    controller: _newPasswordController,
+                                    decoration: _fieldDecoration('New Password'),
+                                    obscureText: true,
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'New password is required';
+                                      }
+                                      if (value.length < 6) {
+                                        return 'Use at least 6 characters';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                  TextFormField(
+                                    controller: _confirmController,
+                                    decoration: _fieldDecoration('Confirm Password'),
+                                    obscureText: true,
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Please confirm your password';
+                                      }
+                                      if (value != _newPasswordController.text) {
+                                        return 'Passwords do not match';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 24),
+                                  FilledButton(
+                                    onPressed: _isUpdating ? null : _resetPassword,
+                                    style: FilledButton.styleFrom(
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(28),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                    ),
+                                    child: _isUpdating
+                                        ? const SizedBox(
+                                            height: 20,
+                                            width: 20,
+                                            child: CircularProgressIndicator(strokeWidth: 2),
+                                          )
+                                        : const Text('UPDATE PASSWORD'),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      TextButton(
+                                        onPressed: () => Navigator.of(context).pop(),
+                                        child: const Text('Back to Sign In'),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 26),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      children: [
-                        TextFormField(
-                          controller: _newPasswordController,
-                          decoration: _fieldDecoration('New Password'),
-                          obscureText: true,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'New password is required';
-                            }
-                            if (value.length < 6) {
-                              return 'Use at least 6 characters';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _confirmController,
-                          decoration: _fieldDecoration('Confirm Password'),
-                          obscureText: true,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please confirm your password';
-                            }
-                            if (value != _newPasswordController.text) {
-                              return 'Passwords do not match';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 24),
-                        FilledButton(
-                          onPressed: _isUpdating ? null : _resetPassword,
-                          style: FilledButton.styleFrom(
-                            minimumSize: const Size.fromHeight(50),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                          ),
-                          child: _isUpdating
-                              ? const SizedBox(
-                                  height: 24,
-                                  width: 24,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Text('Update Password'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );

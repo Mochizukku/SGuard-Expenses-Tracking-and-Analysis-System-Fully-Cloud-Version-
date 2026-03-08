@@ -151,13 +151,38 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
+  Future<bool> _onWillPop() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Exit Application'),
+        content: const Text('Are you sure you want to exit without saving to sync?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Exit', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      )
+    );
+    return confirm ?? false;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: _selectedIndex == 3 ? null : _buildTopNavigation(),
-      backgroundColor: Colors.white,
-      body: _buildPageView(),
-      bottomNavigationBar: _buildBottomNavigation(),
+    return WillPopScope(
+      onWillPop: _onWillPop,
+      child: Scaffold(
+        appBar: _selectedIndex == 3 ? null : _buildTopNavigation(),
+        backgroundColor: Colors.white,
+        body: _buildPageView(),
+        bottomNavigationBar: _buildBottomNavigation(),
+      ),
     );
   }
 }

@@ -29,6 +29,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final user = _firebase.currentUser;
     if (user == null) return;
     try {
+      debugPrint('Fetching latest stats...');
       final summary = await _gateway.fetchProfileSummary(user.uid);
       setState(() {
         _profileSummary = summary;
@@ -42,6 +43,26 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _signOut() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sign out?'),
+        content: const Text('Are you sure you want to sign out without saving to sync?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Sign out', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      )
+    );
+    if (confirm != true) return;
+
     await _firebase.signOut();
     if (!mounted) return;
     setState(() {
@@ -221,11 +242,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 Text(
                   _error!,
                   style: const TextStyle(color: Colors.red),
-                )
-              else
-                const Text(
-                  'Fetching latest stats...',
-                  style: TextStyle(fontSize: 14, color: Colors.black54),
                 ),
               const SizedBox(height: 16),
               _buildActionButton(
