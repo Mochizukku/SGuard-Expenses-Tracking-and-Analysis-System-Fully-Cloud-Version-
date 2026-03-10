@@ -1,6 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../app_shell.dart';
+import '../recordbook/recordbookpage.dart';
 import 'registerpage.dart';
 import 'resetpasswordpage.dart';
 
@@ -21,10 +24,72 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
-    await Future<void>.delayed(const Duration(milliseconds: 250));
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    _goToAppShell();
+    try {
+      final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+      if (credential.user != null) {
+        if (!mounted) return;
+        
+        // Show dialog asking whether to load from cloud or use local
+        final choice = await showDialog<String>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text('Load Cloud Data?'),
+            content: const Text('Would you like to load your latest account data from the cloud, or keep the current local data? (Loading from cloud will overwrite current local changes)'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop('local'),
+                child: const Text('Keep Local'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop('cloud'),
+                child: const Text('Load Cloud'),
+              ),
+            ],
+          ),
+        );
+        
+        if (choice == 'cloud') {
+          try {
+            final snapshot = await FirebaseFirestore.instance.collection('users').doc(credential.user!.uid).get();
+            if (snapshot.exists && snapshot.data() != null) {
+              final data = snapshot.data()!;
+              RecordBookData.balance = (data['balance'] as num?)?.toDouble() ?? 0.0;
+              if (data['startDate'] != null) {
+                RecordBookData.startDate = DateTime.parse(data['startDate']);
+              }
+              if (data['endDate'] != null) {
+                RecordBookData.endDate = DateTime.parse(data['endDate']);
+              }
+              if (data['categories'] != null) {
+                final cats = data['categories'] as List<dynamic>;
+                RecordBookData.categories = cats.map((c) => SpendingCategory.fromJson(c as Map<String, dynamic>)).toList();
+              }
+            }
+          } catch (e) {
+            _showMessage('Failed to sync cloud data. Proceeding with local data.');
+          }
+        }
+      }
+      
+      if (!mounted) return;
+      _goToAppShell();
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        _showMessage(e.message ?? 'Login failed.');
+      }
+    } catch (_) {
+      if (mounted) {
+        _showMessage('An error occurred during login.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   void _showMessage(String message) {

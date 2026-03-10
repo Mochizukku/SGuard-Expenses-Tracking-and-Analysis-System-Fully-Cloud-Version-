@@ -11,11 +11,13 @@ class SpendingCategory {
   String name;
   List<SpendingItem> items;
   bool isExpanded;
+  bool isFavorite;
 
   SpendingCategory({
     required this.name,
     List<SpendingItem>? items,
     this.isExpanded = true,
+    this.isFavorite = false,
   }) : items = items ?? [];
 
   double get total => items.fold(0, (sum, item) => sum + item.amount);
@@ -23,6 +25,7 @@ class SpendingCategory {
   Map<String, dynamic> toJson() => {
         'name': name,
         'isExpanded': isExpanded,
+        'isFavorite': isFavorite,
         'items': items.map((i) => {'name': i.name, 'amount': i.amount}).toList(),
       };
 
@@ -30,6 +33,7 @@ class SpendingCategory {
     return SpendingCategory(
       name: json['name'] as String,
       isExpanded: json['isExpanded'] as bool? ?? true,
+      isFavorite: json['isFavorite'] as bool? ?? false,
       items: (json['items'] as List<dynamic>?)?.map((i) {
         final itemMap = i as Map<String, dynamic>;
         return SpendingItem(name: itemMap['name'], amount: (itemMap['amount'] as num).toDouble());
@@ -268,6 +272,16 @@ class _RecordBookPageState extends State<RecordBookPage> {
     );
   }
 
+  List<SpendingCategory> get _sortedCategories {
+    final List<SpendingCategory> favs = [];
+    final List<SpendingCategory> nonFavs = [];
+    for (var c in RecordBookData.categories) {
+      if (c.isFavorite) favs.add(c);
+      else nonFavs.add(c);
+    }
+    return [...favs, ...nonFavs];
+  }
+
   @override
   Widget build(BuildContext context) {
     final primaryBlue = const Color(0xFF004EC4);
@@ -319,31 +333,42 @@ class _RecordBookPageState extends State<RecordBookPage> {
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 12),
-          ...RecordBookData.categories.map((c) => _buildCategory(c, primaryBlue)),
+          ..._sortedCategories.map((c) => _buildCategory(c, primaryBlue)),
           const SizedBox(height: 16),
-          Container(
-            width: double.infinity,
-            height: 44,
-            decoration: BoxDecoration(
-              color: Color(0xFF004AAD),
-              border: Border.all(color: Colors.grey.shade200),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                )
-              ],
-            ),
-            child: TextButton.icon(
-              onPressed: _addNewCategory,
-              icon: Icon(Icons.add, color: Colors.white),
-              label: const Text(
-                'Add',
-                style: TextStyle(color: Colors.white, fontSize: 16),
+          if (RecordBookData.categories.length < 30)
+            Container(
+              width: double.infinity,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Color(0xFF004AAD),
+                border: Border.all(color: Colors.grey.shade200),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  )
+                ],
+              ),
+              child: TextButton.icon(
+                onPressed: _addNewCategory,
+                icon: const Icon(Icons.add, color: Colors.white),
+                label: const Text(
+                  'Add',
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ),
+            )
+          else
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.only(top: 8.0),
+                child: Text(
+                  'Category limit reached (30/30).',
+                  style: TextStyle(color: Colors.red, fontSize: 13, fontWeight: FontWeight.w500),
+                ),
               ),
             ),
-          ),
           const SizedBox(height: 100),
         ],
       ),
@@ -371,8 +396,16 @@ class _RecordBookPageState extends State<RecordBookPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      icon: Icon(Icons.star_border, color: iconColor, size: 20),
-                      onPressed: () {},
+                      icon: Icon(
+                        category.isFavorite ? Icons.star : Icons.star_border,
+                        color: category.isFavorite ? Colors.orange : iconColor,
+                        size: 20,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          category.isFavorite = !category.isFavorite;
+                        });
+                      },
                       constraints: const BoxConstraints(),
                       padding: const EdgeInsets.all(4),
                     ),
