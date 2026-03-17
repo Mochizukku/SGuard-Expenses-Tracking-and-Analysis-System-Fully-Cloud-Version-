@@ -1,10 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class SpendingItem {
   String name;
   double amount;
+  DateTime date;
 
-  SpendingItem({required this.name, double? amount}) : amount = amount ?? 0.0;
+  SpendingItem({required this.name, double? amount, DateTime? date}) 
+      : amount = amount ?? 0.0,
+        date = date ?? DateTime.now();
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'amount': amount,
+        'date': date.toIso8601String(),
+      };
+
+  factory SpendingItem.fromJson(Map<String, dynamic> json) {
+    return SpendingItem(
+      name: json['name'] as String,
+      amount: (json['amount'] as num).toDouble(),
+      date: json['date'] != null ? DateTime.parse(json['date']) : DateTime.now(),
+    );
+  }
 }
 
 class SpendingCategory {
@@ -26,7 +45,7 @@ class SpendingCategory {
         'name': name,
         'isExpanded': isExpanded,
         'isFavorite': isFavorite,
-        'items': items.map((i) => {'name': i.name, 'amount': i.amount}).toList(),
+        'items': items.map((i) => i.toJson()).toList(),
       };
 
   factory SpendingCategory.fromJson(Map<String, dynamic> json) {
@@ -35,8 +54,7 @@ class SpendingCategory {
       isExpanded: json['isExpanded'] as bool? ?? true,
       isFavorite: json['isFavorite'] as bool? ?? false,
       items: (json['items'] as List<dynamic>?)?.map((i) {
-        final itemMap = i as Map<String, dynamic>;
-        return SpendingItem(name: itemMap['name'], amount: (itemMap['amount'] as num).toDouble());
+        return SpendingItem.fromJson(i as Map<String, dynamic>);
       }).toList(),
     );
   }
@@ -184,9 +202,9 @@ class _RecordBookPageState extends State<RecordBookPage> {
   void _addItemToCategory(SpendingCategory category) {
     _showItemInputDialog(
       title: 'Add Item',
-      onConfirm: (name, amount) {
+      onConfirm: (name, amount, date) {
         setState(() {
-          category.items.add(SpendingItem(name: name, amount: amount));
+          category.items.add(SpendingItem(name: name, amount: amount, date: date));
         });
       },
     );
@@ -198,10 +216,12 @@ class _RecordBookPageState extends State<RecordBookPage> {
       title: 'Edit Item',
       initialName: item.name,
       initialAmount: item.amount,
-      onConfirm: (name, amount) {
+      initialDate: item.date,
+      onConfirm: (name, amount, date) {
         setState(() {
           item.name = name;
           item.amount = amount;
+          item.date = date;
         });
       },
       onDelete: () {
@@ -216,58 +236,91 @@ class _RecordBookPageState extends State<RecordBookPage> {
     required String title,
     String initialName = '',
     double initialAmount = 0.0,
-    required Function(String, double) onConfirm,
+    DateTime? initialDate,
+    required Function(String, double, DateTime) onConfirm,
     VoidCallback? onDelete,
   }) {
     final TextEditingController nameController =
         TextEditingController(text: initialName);
     final TextEditingController amountController = TextEditingController(
         text: initialAmount == 0.0 ? '' : initialAmount.toStringAsFixed(2));
+    DateTime selectedDate = initialDate ?? DateTime.now();
+
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: Text(title),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(hintText: 'Item Name'),
-                autofocus: true,
-              ),
-              TextField(
-                controller: amountController,
-                decoration: const InputDecoration(hintText: 'Amount'),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              ),
-            ],
-          ),
-          actions: [
-            if (onDelete != null)
+        return StatefulBuilder(builder: (context, setStateDialog) {
+          return AlertDialog(
+            title: Text(title),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(hintText: 'Item Name'),
+                  autofocus: true,
+                ),
+                TextField(
+                  controller: amountController,
+                  decoration: const InputDecoration(hintText: 'Amount'),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () async {
+                    final d = await showDatePicker(
+                      context: context,
+                      initialDate: selectedDate,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime(2030),
+                    );
+                    if (d != null) {
+                      setStateDialog(() => selectedDate = d);
+                    }
+                  },
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Date',
+                      border: const OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('${selectedDate.month}/${selectedDate.day}/${selectedDate.year}'),
+                        const Icon(Icons.calendar_today, size: 16),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              if (onDelete != null)
+                TextButton(
+                  onPressed: () {
+                    onDelete();
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                ),
               TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
                 onPressed: () {
-                  onDelete();
+                  final double amt = double.tryParse(amountController.text) ?? 0.0;
+                  if (nameController.text.trim().isNotEmpty) {
+                    onConfirm(nameController.text.trim(), amt, selectedDate);
+                  }
                   Navigator.pop(context);
                 },
-                child: const Text('Delete', style: TextStyle(color: Colors.red)),
-              ),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final double amt = double.tryParse(amountController.text) ?? 0.0;
-                if (nameController.text.trim().isNotEmpty) {
-                  onConfirm(nameController.text.trim(), amt);
-                }
-                Navigator.pop(context);
-              },
-              child: const Text('Save'),
-            )
-          ],
-        );
+                child: const Text('Save'),
+              )
+            ],
+          );
+        });
       },
     );
   }

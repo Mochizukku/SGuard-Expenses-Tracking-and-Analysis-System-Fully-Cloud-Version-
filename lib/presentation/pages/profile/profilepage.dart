@@ -4,6 +4,9 @@ import '../../../data/services/fastapi_gateway.dart';
 import '../../../data/services/firebase_service.dart';
 import '../signin_or_signup/loginpage.dart';
 import 'profile_action_page.dart';
+import '../recordbook/recordbookpage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -18,11 +21,53 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Map<String, dynamic>? _profileSummary;
   String? _error;
+  String? _lastSyncTime;
+  bool _isSyncing = false;
 
   @override
   void initState() {
     super.initState();
     _loadProfileSummary();
+    _loadSyncTime();
+  }
+
+  Future<void> _loadSyncTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _lastSyncTime = prefs.getString('last_sync_time');
+    });
+  }
+
+  Future<void> _saveToCloud() async {
+    final user = _firebase.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please log in first.')));
+      return;
+    }
+
+    setState(() => _isSyncing = true);
+    
+    try {
+      final docRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+      await docRef.set({
+        'balance': RecordBookData.balance,
+        'startDate': RecordBookData.startDate.toIso8601String(),
+        'endDate': RecordBookData.endDate.toIso8601String(),
+        'categories': RecordBookData.categories.map((c) => c.toJson()).toList(),
+      }, SetOptions(merge: true));
+
+      final now = DateTime.now();
+      final formattedTime = '${now.month}/${now.day}/${now.year} ${now.hour}:${now.minute.toString().padLeft(2, '0')}';
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('last_sync_time', formattedTime);
+
+      setState(() => _lastSyncTime = formattedTime);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Successfully saved to cloud.')));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
+    } finally {
+      if (mounted) setState(() => _isSyncing = false);
+    }
   }
 
   Future<void> _loadProfileSummary() async {
@@ -254,9 +299,11 @@ class _ProfilePageState extends State<ProfilePage> {
                 },
               ),
               _buildActionButton(
-                'Sync/Cloud Status',
-                Icons.sync_alt,
-                () => _openActionPage('Sync/Cloud Status'),
+                _isSyncing 
+                  ? 'Syncing...' 
+                  : (_lastSyncTime != null ? 'Save to Cloud (Last: $_lastSyncTime)' : 'Save to Cloud'),
+                _isSyncing ? Icons.sync : Icons.cloud_upload,
+                _isSyncing ? () {} : _saveToCloud,
               ),
               _buildActionButton(
                 'Manage Records',
