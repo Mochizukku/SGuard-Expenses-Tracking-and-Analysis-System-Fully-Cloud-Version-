@@ -22,6 +22,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Map<String, dynamic>? _profileSummary;
   String? _error;
   String? _lastSyncTime;
+  int _loginStreak = 1;
   bool _isSyncing = false;
 
   @override
@@ -29,6 +30,7 @@ class _ProfilePageState extends State<ProfilePage> {
     super.initState();
     _loadProfileSummary();
     _loadSyncTime();
+    _updateLoginStreak();
   }
 
   Future<void> _loadSyncTime() async {
@@ -36,6 +38,63 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() {
       _lastSyncTime = prefs.getString('last_sync_time');
     });
+  }
+
+  Future<void> _updateLoginStreak() async {
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final storedDate = prefs.getString('last_open_date');
+    final storedStreak = prefs.getInt('login_streak') ?? 0;
+
+    int newStreak = 1;
+    if (storedDate != null) {
+      final previous = DateTime.tryParse(storedDate);
+      if (previous != null) {
+        final prevDate = DateTime(previous.year, previous.month, previous.day);
+        final dayDiff = today.difference(prevDate).inDays;
+        if (dayDiff == 0) {
+          newStreak = storedStreak > 0 ? storedStreak : 1;
+        } else if (dayDiff == 1) {
+          newStreak = storedStreak + 1;
+        }
+      }
+    }
+
+    await prefs.setString('last_open_date', today.toIso8601String());
+    await prefs.setInt('login_streak', newStreak);
+
+    if (!mounted) return;
+    setState(() => _loginStreak = newStreak);
+  }
+
+  double _totalSpent() {
+    return RecordBookData.categories.fold(
+      0.0,
+      (sum, category) => sum + category.total,
+    );
+  }
+
+  int _budgetDays() {
+    final start = DateTime(
+      RecordBookData.startDate.year,
+      RecordBookData.startDate.month,
+      RecordBookData.startDate.day,
+    );
+    final end = DateTime(
+      RecordBookData.endDate.year,
+      RecordBookData.endDate.month,
+      RecordBookData.endDate.day,
+    );
+    if (end.isBefore(start)) return 1;
+    return end.difference(start).inDays + 1;
+  }
+
+  int _budgetMonths() {
+    final months = (RecordBookData.endDate.year - RecordBookData.startDate.year) * 12 +
+        (RecordBookData.endDate.month - RecordBookData.startDate.month) +
+        1;
+    return months < 1 ? 1 : months;
   }
 
   Future<void> _saveToCloud() async {
@@ -199,6 +258,11 @@ class _ProfilePageState extends State<ProfilePage> {
     final user = _firebase.currentUser;
     final displayName = user?.displayName ?? 'No Name';
     final role = 'Student';
+    final totalSpent = _totalSpent();
+    final dailyAverage = totalSpent / _budgetDays();
+    final weeklyAverage = dailyAverage * 7;
+    final monthlyAverage = totalSpent / _budgetMonths();
+
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
@@ -246,10 +310,10 @@ class _ProfilePageState extends State<ProfilePage> {
                             runSpacing: 12,
                             alignment: WrapAlignment.center,
                             children: [
-                              _buildStatsCard('Average Daily Spending', '<empty>'),
-                              _buildStatsCard('Average Weekly Spending', '<empty>'),
-                              _buildStatsCard('Average Monthly Spending', '<empty>'),
-                              _buildStatsCard('Login Streak', '<empty>'),
+                              _buildStatsCard('Average Daily Spending', '\$${dailyAverage.toStringAsFixed(2)}'),
+                              _buildStatsCard('Average Weekly Spending', '\$${weeklyAverage.toStringAsFixed(2)}'),
+                              _buildStatsCard('Average Monthly Spending', '\$${monthlyAverage.toStringAsFixed(2)}'),
+                              _buildStatsCard('Login Streak', '$_loginStreak day${_loginStreak == 1 ? '' : 's'}'),
                             ],
                           );
                         }
@@ -264,10 +328,10 @@ class _ProfilePageState extends State<ProfilePage> {
                               crossAxisSpacing: 12,
                               childAspectRatio: 1.2,
                               children: [
-                                _buildStatsCard('Average Daily Spending', '<empty>'),
-                                _buildStatsCard('Average Weekly Spending', '<empty>'),
-                                _buildStatsCard('Average Monthly Spending', '<empty>'),
-                                _buildStatsCard('Login Streak', '<empty>'),
+                                _buildStatsCard('Average Daily Spending', '\$${dailyAverage.toStringAsFixed(2)}'),
+                                _buildStatsCard('Average Weekly Spending', '\$${weeklyAverage.toStringAsFixed(2)}'),
+                                _buildStatsCard('Average Monthly Spending', '\$${monthlyAverage.toStringAsFixed(2)}'),
+                                _buildStatsCard('Login Streak', '$_loginStreak day${_loginStreak == 1 ? '' : 's'}'),
                               ],
                             ),
                           ),

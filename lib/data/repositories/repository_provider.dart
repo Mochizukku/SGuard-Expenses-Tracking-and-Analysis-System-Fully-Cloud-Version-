@@ -19,7 +19,7 @@ class RepositoryProvider {
     /// Change USE_HTTP_GATEWAY to false if you want to use direct Firestore
     /// true = Use FastAPI gateway (recommended, no ClientException errors)
     /// false = Use direct Firestore (requires Firestore SDK on device)
-    const bool USE_HTTP_GATEWAY = true;
+    bool USE_HTTP_GATEWAY = true;
 
     if (USE_HTTP_GATEWAY) {
       // Use FastAPI gateway (safer, errors handled on backend)

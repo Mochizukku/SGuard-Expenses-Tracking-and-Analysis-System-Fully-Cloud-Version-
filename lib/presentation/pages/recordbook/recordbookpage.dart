@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+// import 'package:cloud_firestore/cloud_firestore.dart';
+// import 'package:firebase_auth/firebase_auth.dart';
 
 class SpendingItem {
   String name;
@@ -67,12 +67,7 @@ class RecordBookData {
   static List<SpendingCategory> categories = [
     SpendingCategory(
       name: 'Billing',
-      items: [
-        SpendingItem(name: 'Water Bill', amount: 250.00),
-        SpendingItem(name: 'Electricity Bill', amount: 420.00),
-        SpendingItem(name: 'Paid Subscriptions', amount: 300.00),
-        SpendingItem(name: 'Health Insurance', amount: 130.00),
-      ],
+      items: [],
     ),
     SpendingCategory(
       name: 'Food',
@@ -93,6 +88,13 @@ class RecordBookPage extends StatefulWidget {
 }
 
 class _RecordBookPageState extends State<RecordBookPage> {
+  double get _overallSpendingTotal {
+    return RecordBookData.categories.fold(
+      0.0,
+      (sum, category) => sum + category.total,
+    );
+  }
+
   String _formatDate(DateTime date) {
     const monthNames = [
       "Jan.", "Feb.", "Mar.", "Apr.", "May", "Jun.",
@@ -387,6 +389,37 @@ class _RecordBookPageState extends State<RecordBookPage> {
           ),
           const SizedBox(height: 12),
           ..._sortedCategories.map((c) => _buildCategory(c, primaryBlue)),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            margin: const EdgeInsets.only(top: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F0FF),
+              border: Border.all(color: const Color(0xFF004EC4), width: 1.2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Total',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF003A96),
+                  ),
+                ),
+                Text(
+                  '\$ ${_overallSpendingTotal.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF003A96),
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 16),
           if (RecordBookData.categories.length < 30)
             Container(
@@ -475,26 +508,21 @@ class _RecordBookPageState extends State<RecordBookPage> {
                       padding: const EdgeInsets.all(4),
                     ),
                     const SizedBox(width: 4),
-                    GestureDetector(
-                      onTap: () {
+                    IconButton(
+                      icon: Icon(
+                        category.isExpanded
+                            ? Icons.keyboard_arrow_down
+                            : Icons.keyboard_arrow_up,
+                        color: iconColor,
+                        size: 20,
+                      ),
+                      onPressed: () {
                         setState(() {
                           category.isExpanded = !category.isExpanded;
                         });
                       },
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFEFBEC),
-                          border: Border.all(color: const Color(0xFFF0E5CC)),
-                        ),
-                        child: Icon(
-                          category.isExpanded
-                              ? Icons.keyboard_arrow_down
-                              : Icons.keyboard_arrow_up,
-                          color: iconColor,
-                          size: 16,
-                        ),
-                      ),
+                      constraints: const BoxConstraints(),
+                      padding: const EdgeInsets.all(4),
                     ),
                   ],
                 ),

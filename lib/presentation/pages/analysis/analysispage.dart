@@ -77,6 +77,187 @@ class _AnalysisPageState extends State<AnalysisPage> {
   
   String _monthShort(int m) => ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m-1];
   String _monthLong(int m) => ["January","February","March","April","May","June","July","August","September","October","November","December"][m-1];
+  
+  Future<int?> _pickYear(int initialYear) async {
+    int selectedYear = initialYear;
+    return showDialog<int>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Select Year'),
+          content: StatefulBuilder(
+            builder: (context, setStateDialog) {
+              return DropdownButton<int>(
+                value: selectedYear,
+                isExpanded: true,
+                items: List.generate(31, (i) => 2020 + i)
+                    .map((year) => DropdownMenuItem<int>(
+                          value: year,
+                          child: Text(year.toString()),
+                        ))
+                    .toList(),
+                onChanged: (year) {
+                  if (year != null) {
+                    setStateDialog(() => selectedYear = year);
+                  }
+                },
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, selectedYear),
+              child: const Text('Apply'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<DateTime?> _pickMonthYear(DateTime initial) async {
+    int selectedMonth = initial.month;
+    int selectedYear = initial.year;
+    return showDialog<DateTime>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Select Month'),
+          content: StatefulBuilder(
+            builder: (context, setStateDialog) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButton<int>(
+                    value: selectedMonth,
+                    isExpanded: true,
+                    items: List.generate(12, (i) => i + 1)
+                        .map((month) => DropdownMenuItem<int>(
+                              value: month,
+                              child: Text(_monthLong(month)),
+                            ))
+                        .toList(),
+                    onChanged: (month) {
+                      if (month != null) {
+                        setStateDialog(() => selectedMonth = month);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButton<int>(
+                    value: selectedYear,
+                    isExpanded: true,
+                    items: List.generate(31, (i) => 2020 + i)
+                        .map((year) => DropdownMenuItem<int>(
+                              value: year,
+                              child: Text(year.toString()),
+                            ))
+                        .toList(),
+                    onChanged: (year) {
+                      if (year != null) {
+                        setStateDialog(() => selectedYear = year);
+                      }
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, DateTime(selectedYear, selectedMonth, 1)),
+              child: const Text('Apply'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  DateTime _weekStartFromYearAndWeek(int year, int week) {
+    final firstDay = DateTime(year, 1, 1);
+    final firstSunday = firstDay.subtract(Duration(days: firstDay.weekday % 7));
+    return firstSunday.add(Duration(days: (week - 1) * 7));
+  }
+
+  int _weekOfYear(DateTime date) {
+    final firstDay = DateTime(date.year, 1, 1);
+    final firstSunday = firstDay.subtract(Duration(days: firstDay.weekday % 7));
+    return ((date.difference(firstSunday).inDays) ~/ 7) + 1;
+  }
+
+  Future<DateTime?> _pickWeek(DateTime initial) async {
+    int selectedYear = initial.year;
+    int selectedWeek = _weekOfYear(initial);
+    if (selectedWeek < 1) selectedWeek = 1;
+    if (selectedWeek > 53) selectedWeek = 53;
+    return showDialog<DateTime>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Select Week'),
+          content: StatefulBuilder(
+            builder: (context, setStateDialog) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButton<int>(
+                    value: selectedYear,
+                    isExpanded: true,
+                    items: List.generate(31, (i) => 2020 + i)
+                        .map((year) => DropdownMenuItem<int>(
+                              value: year,
+                              child: Text(year.toString()),
+                            ))
+                        .toList(),
+                    onChanged: (year) {
+                      if (year != null) {
+                        setStateDialog(() => selectedYear = year);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButton<int>(
+                    value: selectedWeek,
+                    isExpanded: true,
+                    items: List.generate(53, (i) => i + 1)
+                        .map((week) => DropdownMenuItem<int>(
+                              value: week,
+                              child: Text('Week $week'),
+                            ))
+                        .toList(),
+                    onChanged: (week) {
+                      if (week != null) {
+                        setStateDialog(() => selectedWeek = week);
+                      }
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, _weekStartFromYearAndWeek(selectedYear, selectedWeek)),
+              child: const Text('Apply'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   Widget _buildDateSelector(String text, VoidCallback onTap) {
     return GestureDetector(
@@ -206,7 +387,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
     required double rightTotal,
   }) {
     final diff = rightTotal - leftTotal;
-    final isUp = diff >= 0;
+    final isUp = diff > 0;
+    final isDown = diff < 0;
+    final trendMessage = isUp
+        ? 'Spending Increased'
+        : isDown
+            ? 'Spending Decreased'
+            : 'No Changes';
     
     return Padding(
       padding: const EdgeInsets.only(bottom: 32),
@@ -232,10 +419,20 @@ class _AnalysisPageState extends State<AnalysisPage> {
                     Text(rightTitle, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                     const SizedBox(width: 4),
                     if (leftTotal > 0 || rightTotal > 0)
-                      Icon(
-                        isUp ? Icons.arrow_upward : Icons.arrow_downward,
-                        color: isUp ? Colors.red : Colors.green,
-                        size: 14,
+                      GestureDetector(
+                        onLongPress: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(trendMessage),
+                              duration: const Duration(seconds: 1),
+                            ),
+                          );
+                        },
+                        child: Icon(
+                          isDown ? Icons.arrow_downward : Icons.arrow_upward,
+                          color: isDown ? Colors.green : Colors.red,
+                          size: 14,
+                        ),
                       ),
                   ],
                 ),
@@ -252,6 +449,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
   @override
   Widget build(BuildContext context) {
     final totalSpent = _getTotalSpent();
+    final rawProgress = RecordBookData.balance > 0 ? totalSpent / RecordBookData.balance : 0.0;
+    final clampedProgress = rawProgress.clamp(0.0, 1.0).toDouble();
+    final progressPercent = (clampedProgress * 100).toStringAsFixed(2);
+    final progressColor = clampedProgress >= 1.0 ? Colors.red : Colors.blue;
     final today = DateTime.now();
 
     return Container(
@@ -266,7 +467,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                 Text('${totalSpent > 0 && RecordBookData.balance > 0 ? (totalSpent/RecordBookData.balance*100).toStringAsFixed(2) : 0}%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                 Text('$progressPercent%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                  Text('until ${_monthShort(RecordBookData.endDate.month)} ${RecordBookData.endDate.day}, ${RecordBookData.endDate.year}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
               ],
             ),
@@ -274,10 +475,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: LinearProgressIndicator(
-                value: RecordBookData.balance > 0 ? (totalSpent / RecordBookData.balance).clamp(0.0, 1.0) : 0.0,
+                value: clampedProgress,
                 minHeight: 10,
                 backgroundColor: Colors.blue.withOpacity(0.2),
-                valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
+                valueColor: AlwaysStoppedAnimation<Color>(progressColor),
               ),
             ),
             const SizedBox(height: 6),
@@ -310,7 +511,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
               
               return _buildComparisonRow(
                  leftControl: _buildDateSelector(_formatWeeklyDate(_weeklyDate), () async {
-                    final picked = await showDatePicker(context: context, initialDate: _weeklyDate, firstDate: DateTime(2020), lastDate: DateTime(2030));
+                    final picked = await _pickWeek(_weeklyDate);
                     if (picked != null) setState(() => _weeklyDate = picked);
                  }),
                  leftChart: _buildBarChart(selWeekStart, selWeekEnd, 7),
@@ -330,7 +531,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
               
               return _buildComparisonRow(
                  leftControl: _buildDateSelector(_formatMonthlyDate(_monthlyDate), () async {
-                    final picked = await showDatePicker(context: context, initialDate: _monthlyDate, firstDate: DateTime(2020), lastDate: DateTime(2030));
+                    final picked = await _pickMonthYear(_monthlyDate);
                     if (picked != null) setState(() => _monthlyDate = picked);
                  }),
                  leftChart: _buildBarChart(selMonthStart, selMonthEnd, 4), // 4 weeks approximation
@@ -350,9 +551,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
               
               return _buildComparisonRow(
                  leftControl: _buildDateSelector(_formatYearlyDate(_yearlyDate), () async {
-                    // For yearly we could pick a full year. Using date picker is fine, we just use the year part.
-                    final picked = await showDatePicker(context: context, initialDate: _yearlyDate, firstDate: DateTime(2020), lastDate: DateTime(2030));
-                    if (picked != null) setState(() => _yearlyDate = picked);
+                    final pickedYear = await _pickYear(_yearlyDate.year);
+                    if (pickedYear != null) setState(() => _yearlyDate = DateTime(pickedYear, 1, 1));
                  }),
                  leftChart: _buildBarChart(selYearStart, selYearEnd, 12), // 12 months
                  rightTitle: 'This Year',
