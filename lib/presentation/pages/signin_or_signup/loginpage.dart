@@ -1,7 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../../data/services/record_book_store.dart';
 import '../app_shell.dart';
 import '../recordbook/recordbookpage.dart';
 import 'registerpage.dart';
@@ -22,64 +22,73 @@ class _LoginPageState extends State<LoginPage> {
   bool _rememberMe = true;
 
   Future<void> _signIn() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
       final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
+
       if (credential.user != null) {
-        if (!mounted) return;
-        
-        // Show dialog asking whether to load from cloud or use local
-        final choice = await showDialog<String>(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            title: const Text('Load Cloud Data?'),
-            content: const Text('Would you like to load your latest account data from the cloud, or keep the current local data? (Loading from cloud will overwrite current local changes)'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop('local'),
-                child: const Text('Keep Local'),
+        if (!mounted) {
+          return;
+        }
+
+        final prepareResult = await RecordBookStore.prepareTodayForAuthenticatedUser();
+
+        if (prepareResult.didReset) {
+          _showMessage(
+            'Records were reset using server time for ${prepareResult.serverDateKey}. Cloud data was loaded automatically.',
+          );
+        } else {
+          final choice = await showDialog<String>(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              title: const Text('Load Cloud Data?'),
+              content: const Text(
+                'Would you like to load your latest date-based data from the cloud, or keep the current local data?',
               ),
-              ElevatedButton(
-                onPressed: () => Navigator.of(context).pop('cloud'),
-                child: const Text('Load Cloud'),
-              ),
-            ],
-          ),
-        );
-        
-        if (choice == 'cloud') {
-          try {
-            final snapshot = await FirebaseFirestore.instance.collection('users').doc(credential.user!.uid).get();
-            if (snapshot.exists && snapshot.data() != null) {
-              final data = snapshot.data()!;
-              RecordBookData.balance = (data['balance'] as num?)?.toDouble() ?? 0.0;
-              if (data['startDate'] != null) {
-                RecordBookData.startDate = DateTime.parse(data['startDate']);
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop('local'),
+                  child: const Text('Keep Local'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop('cloud'),
+                  child: const Text('Load Cloud'),
+                ),
+              ],
+            ),
+          );
+
+          if (choice == 'cloud') {
+            try {
+              final snapshot = await RecordBookStore.loadLatestCloudSnapshot();
+              if (snapshot == null) {
+                _showMessage('No cloud data found. Keeping local data.');
               }
-              if (data['endDate'] != null) {
-                RecordBookData.endDate = DateTime.parse(data['endDate']);
-              }
-              if (data['categories'] != null) {
-                final cats = data['categories'] as List<dynamic>;
-                RecordBookData.categories = cats.map((c) => SpendingCategory.fromJson(c as Map<String, dynamic>)).toList();
-              }
+            } catch (error) {
+              _showMessage('Failed to sync cloud data. Proceeding with local data. $error');
             }
-          } catch (e) {
-            _showMessage('Failed to sync cloud data. Proceeding with local data.');
+          } else {
+            RecordBookData.notifyListeners();
+            await RecordBookStore.saveLocalSnapshot();
           }
         }
       }
-      
-      if (!mounted) return;
+
+      if (!mounted) {
+        return;
+      }
       _goToAppShell();
-    } on FirebaseAuthException catch (e) {
+    } on FirebaseAuthException catch (error) {
       if (mounted) {
-        _showMessage(e.message ?? 'Login failed.');
+        _showMessage(error.message ?? 'Login failed.');
       }
     } catch (_) {
       if (mounted) {
@@ -93,7 +102,9 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _showMessage(String message) {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -151,9 +162,7 @@ class _LoginPageState extends State<LoginPage> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF004AAD),
         elevation: 0,
-        leading: const BackButton(
-          color: Colors.white,
-        ),
+        leading: const BackButton(color: Colors.white),
       ),
       body: SafeArea(
         child: LayoutBuilder(
@@ -204,7 +213,7 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.15),
+                                color: Colors.black.withValues(alpha: 0.15),
                                 blurRadius: 24,
                                 offset: const Offset(0, -8),
                               ),
@@ -259,14 +268,14 @@ class _LoginPageState extends State<LoginPage> {
                                       Checkbox(
                                         value: _rememberMe,
                                         onChanged: (value) {
-                                          if (value == null) return;
+                                          if (value == null) {
+                                            return;
+                                          }
                                           setState(() => _rememberMe = value);
                                         },
                                       ),
                                       const SizedBox(width: 4),
-                                      const Flexible(
-                                        child: Text('Remember me'),
-                                      ),
+                                      const Flexible(child: Text('Remember me')),
                                     ],
                                   ),
                                   const SizedBox(height: 8),
@@ -306,7 +315,7 @@ class _LoginPageState extends State<LoginPage> {
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      const Text('Don’t Have an Account? '),
+                                      const Text('Don\'t Have an Account? '),
                                       TextButton(
                                         onPressed: _openRegister,
                                         child: const Text('Create an Account'),

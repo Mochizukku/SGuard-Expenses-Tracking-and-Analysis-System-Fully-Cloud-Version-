@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../data/services/record_book_store.dart';
 import 'app_shell.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -12,11 +13,17 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  late final Timer _timer;
+  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    await RecordBookStore.loadLocalSnapshot();
+    await RecordBookStore.prepareTodayForAuthenticatedUser();
     _timer = Timer(const Duration(seconds: 5), _goToApp);
   }
 
@@ -29,7 +36,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   void dispose() {
-    _timer.cancel();
+    _timer?.cancel();
     super.dispose();
   }
 

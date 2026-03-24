@@ -45,32 +45,6 @@ class HomePageContent extends StatelessWidget {
     return totals;
   }
 
-  double _totalWithinBalanceDuration() {
-    final start = DateTime(
-      RecordBookData.startDate.year,
-      RecordBookData.startDate.month,
-      RecordBookData.startDate.day,
-    );
-    final end = DateTime(
-      RecordBookData.endDate.year,
-      RecordBookData.endDate.month,
-      RecordBookData.endDate.day,
-      23,
-      59,
-      59,
-    );
-
-    double total = 0.0;
-    for (final category in RecordBookData.categories) {
-      for (final item in category.items) {
-        if (!item.date.isBefore(start) && !item.date.isAfter(end)) {
-          total += item.amount;
-        }
-      }
-    }
-    return total;
-  }
-
   bool _isSameDay(DateTime a, DateTime b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
@@ -180,107 +154,111 @@ class HomePageContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final yesterdayDate = now.subtract(const Duration(days: 1));
+    return ValueListenableBuilder<int>(
+      valueListenable: RecordBookData.revision,
+      builder: (context, _, __) {
+        final activeDate = RecordBookData.activeDate;
+        final yesterdayDate = activeDate.subtract(const Duration(days: 1));
+        final todayTotal = _sumForDay(activeDate);
+        final yesterdayTotal = _sumForDay(yesterdayDate);
+        final trend = _trendLabel(todayTotal, yesterdayTotal);
+        final trendText =
+            trend == 'remained' ? 'remained the same as the previous day' : '$trend than the previous day';
 
-    final todayTotal = _sumForDay(now);
-    final yesterdayTotal = _sumForDay(yesterdayDate);
-    final trend = _trendLabel(todayTotal, yesterdayTotal);
-    final trendText = trend == 'remained'
-        ? 'remained the same as yesterday'
-        : '$trend than yesterday';
+        final remainingBalance = math.max(RecordBookData.balance - todayTotal, 0.0);
+        final yesterdayCategoryTotals = _categoryTotalsForDay(yesterdayDate);
+        final topCategory = _topCategory(yesterdayCategoryTotals);
+        final insight = _insightPlaceholder(
+          today: todayTotal,
+          yesterday: yesterdayTotal,
+          topCategory: topCategory,
+        );
 
-    final spentInDuration = _totalWithinBalanceDuration();
-    final remainingBalance = math.max(
-      RecordBookData.balance - spentInDuration,
-      0.0,
-    );
-    final yesterdayCategoryTotals = _categoryTotalsForDay(yesterdayDate);
-    final topCategory = _topCategory(yesterdayCategoryTotals);
-    final insight = _insightPlaceholder(
-      today: todayTotal,
-      yesterday: yesterdayTotal,
-      topCategory: topCategory,
-    );
-
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+        return Container(
+          color: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Row(
+                children: [
+                  const Text(
+                    'Home',
+                    style: TextStyle(fontSize: 34, fontWeight: FontWeight.w700),
+                  ),
+                  const Spacer(),
+                  Icon(
+                    Icons.search,
+                    size: 30,
+                    color: Colors.black.withValues(alpha: 0.85),
+                  ),
+                  const SizedBox(width: 12),
+                  Icon(
+                    Icons.more_vert,
+                    size: 30,
+                    color: Colors.black.withValues(alpha: 0.85),
+                  ),
+                ],
+              ),
+              const Divider(height: 28),
+              const SizedBox(height: 6),
               const Text(
-                'Home',
-                style: TextStyle(fontSize: 34, fontWeight: FontWeight.w700),
+                'Total Spending',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
               ),
-              const Spacer(),
-              Icon(
-                Icons.search,
-                size: 30,
-                color: Colors.black.withValues(alpha: 0.85),
+              const SizedBox(height: 8),
+              Text(
+                'Active day: ${activeDate.month}/${activeDate.day}/${activeDate.year}',
+                style: const TextStyle(fontSize: 14, color: Colors.black54),
               ),
-              const SizedBox(width: 12),
-              Icon(
-                Icons.more_vert,
-                size: 30,
-                color: Colors.black.withValues(alpha: 0.85),
+              const SizedBox(height: 14),
+              Text(
+                'Current day:  ${_currency(todayTotal)}',
+                style: const TextStyle(fontSize: 16),
               ),
+              Text(
+                'Previous day:  ${_currency(yesterdayTotal)}',
+                style: const TextStyle(fontSize: 16),
+              ),
+              Row(
+                children: [
+                  const Text('Trends: ', style: TextStyle(fontSize: 16)),
+                  Icon(
+                    _trendIcon(todayTotal, yesterdayTotal),
+                    color: _trendColor(todayTotal, yesterdayTotal),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(trendText, style: const TextStyle(fontSize: 16)),
+                  ),
+                ],
+              ),
+              Text(
+                'Remaining balance:  ${_currency(remainingBalance)}',
+                style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 26),
+              const Text(
+                'Previous Day Analysis:',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 12),
+              _buildYesterdayChart(yesterdayCategoryTotals),
+              const SizedBox(height: 20),
+              Text(
+                insight,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.black54,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+              const SizedBox(height: 90),
             ],
           ),
-          const Divider(height: 28),
-          const SizedBox(height: 6),
-          const Text(
-            'Total Spending',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'Today:  ${_currency(todayTotal)}',
-            style: const TextStyle(fontSize: 16),
-          ),
-          Text(
-            'Yesterday:  ${_currency(yesterdayTotal)}',
-            style: const TextStyle(fontSize: 16),
-          ),
-          Row(
-            children: [
-              const Text('Trends: ', style: TextStyle(fontSize: 16)),
-              Icon(
-                _trendIcon(todayTotal, yesterdayTotal),
-                color: _trendColor(todayTotal, yesterdayTotal),
-                size: 18,
-              ),
-              const SizedBox(width: 5),
-              Expanded(
-                child: Text(trendText, style: const TextStyle(fontSize: 16)),
-              ),
-            ],
-          ),
-          Text(
-            'Remaining balance:  ${_currency(remainingBalance)}',
-            style: const TextStyle(fontSize: 16),
-          ),
-          const SizedBox(height: 26),
-          const Text(
-            'Yesterday\'s Analysis:',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(height: 12),
-          _buildYesterdayChart(yesterdayCategoryTotals),
-          const SizedBox(height: 20),
-          Text(
-            insight,
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.black54,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-          const SizedBox(height: 90),
-        ],
-      ),
+        );
+      },
     );
   }
 }

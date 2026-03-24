@@ -448,124 +448,145 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   @override
   Widget build(BuildContext context) {
-    final totalSpent = _getTotalSpent();
-    final rawProgress = RecordBookData.balance > 0 ? totalSpent / RecordBookData.balance : 0.0;
-    final clampedProgress = rawProgress.clamp(0.0, 1.0).toDouble();
-    final progressPercent = (clampedProgress * 100).toStringAsFixed(2);
-    final progressColor = clampedProgress >= 1.0 ? Colors.red : Colors.blue;
-    final today = DateTime.now();
+    return ValueListenableBuilder<int>(
+      valueListenable: RecordBookData.revision,
+      builder: (context, _, __) {
+        final totalSpent = _getTotalSpent();
+        final rawProgress = RecordBookData.balance > 0 ? totalSpent / RecordBookData.balance : 0.0;
+        final clampedProgress = rawProgress.clamp(0.0, 1.0).toDouble();
+        final progressPercent = (clampedProgress * 100).toStringAsFixed(2);
+        final progressColor = clampedProgress >= 1.0 ? Colors.red : Colors.blue;
+        final today = RecordBookData.activeDate;
 
-    return Container(
-      color: Colors.white,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Spending Progress', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        return Container(
+          color: Colors.white,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                 Text('$progressPercent%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                 Text('until ${_monthShort(RecordBookData.endDate.month)} ${RecordBookData.endDate.day}, ${RecordBookData.endDate.year}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                const Text('Spending Progress', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('$progressPercent%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    Text(
+                      'for ${_monthShort(today.month)} ${today.day}, ${today.year}',
+                      style: const TextStyle(fontSize: 10, color: Colors.grey),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: clampedProgress,
+                    minHeight: 10,
+                    backgroundColor: Colors.blue.withValues(alpha: 0.2),
+                    valueColor: AlwaysStoppedAnimation<Color>(progressColor),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Center(
+                  child: Text(
+                    '${totalSpent.toStringAsFixed(2)} / ${RecordBookData.balance.toStringAsFixed(2)}',
+                    style: const TextStyle(fontSize: 10, color: Colors.grey),
+                  ),
+                ),
+                const SizedBox(height: 32),
+                const Text('Spending Comparison', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 24),
+                _buildComparisonRow(
+                  leftControl: _buildDateSelector(_formatDailyDate(_dailyDate), () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _dailyDate,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime(2030),
+                    );
+                    if (picked != null) {
+                      setState(() => _dailyDate = picked);
+                    }
+                  }),
+                  leftChart: _buildDailyPieChart(_dailyDate),
+                  rightTitle: 'Active Day',
+                  rightChart: _buildDailyPieChart(today),
+                  leftTotal: _getSpentInRange(
+                    DateTime(_dailyDate.year, _dailyDate.month, _dailyDate.day),
+                    DateTime(_dailyDate.year, _dailyDate.month, _dailyDate.day, 23, 59, 59),
+                  ),
+                  rightTotal: _getSpentInRange(
+                    DateTime(today.year, today.month, today.day),
+                    DateTime(today.year, today.month, today.day, 23, 59, 59),
+                  ),
+                ),
+                Builder(builder: (context) {
+                  final selWeekStart = _weeklyDate.subtract(Duration(days: _weeklyDate.weekday % 7));
+                  final selWeekEnd = selWeekStart.add(const Duration(days: 6, hours: 23, minutes: 59));
+                  final thisWeekStart = today.subtract(Duration(days: today.weekday % 7));
+                  final thisWeekEnd = thisWeekStart.add(const Duration(days: 6, hours: 23, minutes: 59));
+
+                  return _buildComparisonRow(
+                    leftControl: _buildDateSelector(_formatWeeklyDate(_weeklyDate), () async {
+                      final picked = await _pickWeek(_weeklyDate);
+                      if (picked != null) {
+                        setState(() => _weeklyDate = picked);
+                      }
+                    }),
+                    leftChart: _buildBarChart(selWeekStart, selWeekEnd, 7),
+                    rightTitle: 'Active Week',
+                    rightChart: _buildBarChart(thisWeekStart, thisWeekEnd, 7),
+                    leftTotal: _getSpentInRange(selWeekStart, selWeekEnd),
+                    rightTotal: _getSpentInRange(thisWeekStart, thisWeekEnd),
+                  );
+                }),
+                Builder(builder: (context) {
+                  final selMonthStart = DateTime(_monthlyDate.year, _monthlyDate.month, 1);
+                  final selMonthEnd = DateTime(_monthlyDate.year, _monthlyDate.month + 1, 0, 23, 59, 59);
+                  final thisMonthStart = DateTime(today.year, today.month, 1);
+                  final thisMonthEnd = DateTime(today.year, today.month + 1, 0, 23, 59, 59);
+
+                  return _buildComparisonRow(
+                    leftControl: _buildDateSelector(_formatMonthlyDate(_monthlyDate), () async {
+                      final picked = await _pickMonthYear(_monthlyDate);
+                      if (picked != null) {
+                        setState(() => _monthlyDate = picked);
+                      }
+                    }),
+                    leftChart: _buildBarChart(selMonthStart, selMonthEnd, 4),
+                    rightTitle: 'Active Month',
+                    rightChart: _buildBarChart(thisMonthStart, thisMonthEnd, 4),
+                    leftTotal: _getSpentInRange(selMonthStart, selMonthEnd),
+                    rightTotal: _getSpentInRange(thisMonthStart, thisMonthEnd),
+                  );
+                }),
+                Builder(builder: (context) {
+                  final selYearStart = DateTime(_yearlyDate.year, 1, 1);
+                  final selYearEnd = DateTime(_yearlyDate.year, 12, 31, 23, 59, 59);
+                  final thisYearStart = DateTime(today.year, 1, 1);
+                  final thisYearEnd = DateTime(today.year, 12, 31, 23, 59, 59);
+
+                  return _buildComparisonRow(
+                    leftControl: _buildDateSelector(_formatYearlyDate(_yearlyDate), () async {
+                      final pickedYear = await _pickYear(_yearlyDate.year);
+                      if (pickedYear != null) {
+                        setState(() => _yearlyDate = DateTime(pickedYear, 1, 1));
+                      }
+                    }),
+                    leftChart: _buildBarChart(selYearStart, selYearEnd, 12),
+                    rightTitle: 'Active Year',
+                    rightChart: _buildBarChart(thisYearStart, thisYearEnd, 12),
+                    leftTotal: _getSpentInRange(selYearStart, selYearEnd),
+                    rightTotal: _getSpentInRange(thisYearStart, thisYearEnd),
+                  );
+                }),
+                const SizedBox(height: 100),
               ],
             ),
-            const SizedBox(height: 6),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: LinearProgressIndicator(
-                value: clampedProgress,
-                minHeight: 10,
-                backgroundColor: Colors.blue.withOpacity(0.2),
-                valueColor: AlwaysStoppedAnimation<Color>(progressColor),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Center(
-              child: Text('${totalSpent.toStringAsFixed(2)} / ${RecordBookData.balance.toStringAsFixed(2)}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
-            ),
-            const SizedBox(height: 32),
-            const Text('Spending Comparison', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 24),
-            
-            // Daily
-            _buildComparisonRow(
-               leftControl: _buildDateSelector(_formatDailyDate(_dailyDate), () async {
-                  final picked = await showDatePicker(context: context, initialDate: _dailyDate, firstDate: DateTime(2020), lastDate: DateTime(2030));
-                  if (picked != null) setState(() => _dailyDate = picked);
-               }),
-               leftChart: _buildDailyPieChart(_dailyDate),
-               rightTitle: 'Today',
-               rightChart: _buildDailyPieChart(today),
-               leftTotal: _getSpentInRange(DateTime(_dailyDate.year, _dailyDate.month, _dailyDate.day), DateTime(_dailyDate.year, _dailyDate.month, _dailyDate.day, 23, 59, 59)),
-               rightTotal: _getSpentInRange(DateTime(today.year, today.month, today.day), DateTime(today.year, today.month, today.day, 23, 59, 59)),
-            ),
-            
-            // Weekly
-            Builder(builder: (context) {
-              final selWeekStart = _weeklyDate.subtract(Duration(days: _weeklyDate.weekday % 7));
-              final selWeekEnd = selWeekStart.add(const Duration(days: 6, hours: 23, minutes: 59));
-              final thisWeekStart = today.subtract(Duration(days: today.weekday % 7));
-              final thisWeekEnd = thisWeekStart.add(const Duration(days: 6, hours: 23, minutes: 59));
-              
-              return _buildComparisonRow(
-                 leftControl: _buildDateSelector(_formatWeeklyDate(_weeklyDate), () async {
-                    final picked = await _pickWeek(_weeklyDate);
-                    if (picked != null) setState(() => _weeklyDate = picked);
-                 }),
-                 leftChart: _buildBarChart(selWeekStart, selWeekEnd, 7),
-                 rightTitle: 'This Week',
-                 rightChart: _buildBarChart(thisWeekStart, thisWeekEnd, 7),
-                 leftTotal: _getSpentInRange(selWeekStart, selWeekEnd),
-                 rightTotal: _getSpentInRange(thisWeekStart, thisWeekEnd),
-              );
-            }),
-
-            // Monthly
-            Builder(builder: (context) {
-              final selMonthStart = DateTime(_monthlyDate.year, _monthlyDate.month, 1);
-              final selMonthEnd = DateTime(_monthlyDate.year, _monthlyDate.month + 1, 0, 23, 59, 59);
-              final thisMonthStart = DateTime(today.year, today.month, 1);
-              final thisMonthEnd = DateTime(today.year, today.month + 1, 0, 23, 59, 59);
-              
-              return _buildComparisonRow(
-                 leftControl: _buildDateSelector(_formatMonthlyDate(_monthlyDate), () async {
-                    final picked = await _pickMonthYear(_monthlyDate);
-                    if (picked != null) setState(() => _monthlyDate = picked);
-                 }),
-                 leftChart: _buildBarChart(selMonthStart, selMonthEnd, 4), // 4 weeks approximation
-                 rightTitle: 'This Month',
-                 rightChart: _buildBarChart(thisMonthStart, thisMonthEnd, 4),
-                 leftTotal: _getSpentInRange(selMonthStart, selMonthEnd),
-                 rightTotal: _getSpentInRange(thisMonthStart, thisMonthEnd),
-              );
-            }),
-
-            // Yearly
-            Builder(builder: (context) {
-              final selYearStart = DateTime(_yearlyDate.year, 1, 1);
-              final selYearEnd = DateTime(_yearlyDate.year, 12, 31, 23, 59, 59);
-              final thisYearStart = DateTime(today.year, 1, 1);
-              final thisYearEnd = DateTime(today.year, 12, 31, 23, 59, 59);
-              
-              return _buildComparisonRow(
-                 leftControl: _buildDateSelector(_formatYearlyDate(_yearlyDate), () async {
-                    final pickedYear = await _pickYear(_yearlyDate.year);
-                    if (pickedYear != null) setState(() => _yearlyDate = DateTime(pickedYear, 1, 1));
-                 }),
-                 leftChart: _buildBarChart(selYearStart, selYearEnd, 12), // 12 months
-                 rightTitle: 'This Year',
-                 rightChart: _buildBarChart(thisYearStart, thisYearEnd, 12),
-                 leftTotal: _getSpentInRange(selYearStart, selYearEnd),
-                 rightTotal: _getSpentInRange(thisYearStart, thisYearEnd),
-              );
-            }),
-            
-            const SizedBox(height: 100), // bottom spacing
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
