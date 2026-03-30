@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../../../data/services/spending_analysis_service.dart';
+import 'graph_detail_page.dart';
 import '../recordbook/recordbookpage.dart';
 
 class AnalysisPage extends StatefulWidget {
@@ -38,33 +40,14 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return total;
   }
 
-  double _getSpentInRange(DateTime start, DateTime end) {
-    double total = 0;
-    for (var c in RecordBookData.categories) {
-      for (var i in c.items) {
-        if (i.date.isAfter(start.subtract(const Duration(seconds: 1))) && 
-            i.date.isBefore(end.add(const Duration(seconds: 1)))) {
-          total += i.amount;
-        }
-      }
-    }
-    return total;
-  }
+  double _getSpentInRange(DateTime start, DateTime end) =>
+      SpendingAnalysisService.totalInRange(RecordBookData.categories, start, end);
 
-  Map<String, double> _getCategorySpentInRange(DateTime start, DateTime end) {
-    final map = <String, double>{};
-    for (var c in RecordBookData.categories) {
-      double t = 0;
-      for (var i in c.items) {
-        if (i.date.isAfter(start.subtract(const Duration(seconds: 1))) && 
-            i.date.isBefore(end.add(const Duration(seconds: 1)))) {
-          t += i.amount;
-        }
-      }
-      if (t > 0) map[c.name] = t;
-    }
-    return map;
-  }
+  Map<String, double> _getCategorySpentInRange(DateTime start, DateTime end) =>
+      SpendingAnalysisService.categoryTotalsInRange(RecordBookData.categories, start, end);
+
+  List<SpendingCategory> _getCategoriesInRange(DateTime start, DateTime end) =>
+      SpendingAnalysisService.categoriesInRange(RecordBookData.categories, start, end);
 
   String _formatDailyDate(DateTime d) => '${_monthShort(d.month)} ${d.day}, ${d.year}';
   String _formatWeeklyDate(DateTime d) {
@@ -273,6 +256,28 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
+  void _openDetailPage({
+    required String title,
+    required String periodLabel,
+    required GraphDetailChartType chartType,
+    required DateTime start,
+    required DateTime end,
+  }) {
+    final categories = _getCategoriesInRange(start, end);
+    final total = _getSpentInRange(start, end);
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => GraphDetailPage(
+          title: title,
+          periodLabel: periodLabel,
+          chartType: chartType,
+          categories: categories,
+          total: total,
+        ),
+      ),
+    );
+  }
+
   Widget _buildDailyPieChart(DateTime date) {
     final start = DateTime(date.year, date.month, date.day);
     final end = DateTime(date.year, date.month, date.day, 23, 59, 59);
@@ -297,21 +302,30 @@ class _AnalysisPageState extends State<AnalysisPage> {
       );
     }).toList();
 
-    return SizedBox(
-      height: 120,
-      child: PieChart(
-        PieChartData(
-          sections: sections,
-          centerSpaceRadius: 20,
-          sectionsSpace: 0,
+    return InkWell(
+      onTap: () => _openDetailPage(
+        title: 'Daily Comparison Details',
+        periodLabel: _formatDailyDate(date),
+        chartType: GraphDetailChartType.pie,
+        start: start,
+        end: end,
+      ),
+      child: SizedBox(
+        height: 120,
+        child: PieChart(
+          PieChartData(
+            sections: sections,
+            centerSpaceRadius: 20,
+            sectionsSpace: 0,
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildBarChart(DateTime start, DateTime end, int divisions) {
-    final duration = end.difference(start);
-    final divDuration = duration.inDays ~/ divisions;
+  Widget _buildBarChart(DateTime start, DateTime end, int divisions, String detailLabel) {
+    final inclusiveDays = end.difference(start).inDays + 1;
+    final divDuration = inclusiveDays ~/ divisions;
     if (divDuration == 0) return const SizedBox(height: 150);
     
     List<BarChartGroupData> groups = [];
@@ -350,31 +364,40 @@ class _AnalysisPageState extends State<AnalysisPage> {
         );
     }
     
-    return SizedBox(
-        height: 150,
-        child: BarChart(
-            BarChartData(
-                barGroups: groups,
-                borderData: FlBorderData(show: false),
-                titlesData: FlTitlesData(
-                    leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                            showTitles: true,
-                            getTitlesWidget: (val, meta) {
-                                return Padding(
-                                    padding: const EdgeInsets.only(top: 4),
-                                    child: Text('W${val.toInt()+1}', style: const TextStyle(fontSize: 9, color: Colors.grey)),
-                                );
-                            }
-                        )
-                    )
-                ),
-                gridData: const FlGridData(show: false),
-            )
-        )
+    return InkWell(
+      onTap: () => _openDetailPage(
+        title: 'Comparison Details',
+        periodLabel: detailLabel,
+        chartType: GraphDetailChartType.bar,
+        start: start,
+        end: end,
+      ),
+      child: SizedBox(
+          height: 150,
+          child: BarChart(
+              BarChartData(
+                  barGroups: groups,
+                  borderData: FlBorderData(show: false),
+                  titlesData: FlTitlesData(
+                      leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                              showTitles: true,
+                              getTitlesWidget: (val, meta) {
+                                  return Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Text('W${val.toInt()+1}', style: const TextStyle(fontSize: 9, color: Colors.grey)),
+                                  );
+                              }
+                          )
+                      )
+                  ),
+                  gridData: const FlGridData(show: false),
+              )
+          )
+      ),
     );
   }
 
@@ -534,9 +557,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
                         setState(() => _weeklyDate = picked);
                       }
                     }),
-                    leftChart: _buildBarChart(selWeekStart, selWeekEnd, 7),
+                    leftChart: _buildBarChart(selWeekStart, selWeekEnd, 7, _formatWeeklyDate(_weeklyDate)),
                     rightTitle: 'Active Week',
-                    rightChart: _buildBarChart(thisWeekStart, thisWeekEnd, 7),
+                    rightChart: _buildBarChart(thisWeekStart, thisWeekEnd, 7, _formatWeeklyDate(today)),
                     leftTotal: _getSpentInRange(selWeekStart, selWeekEnd),
                     rightTotal: _getSpentInRange(thisWeekStart, thisWeekEnd),
                   );
@@ -554,9 +577,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
                         setState(() => _monthlyDate = picked);
                       }
                     }),
-                    leftChart: _buildBarChart(selMonthStart, selMonthEnd, 4),
+                    leftChart: _buildBarChart(selMonthStart, selMonthEnd, 4, _formatMonthlyDate(_monthlyDate)),
                     rightTitle: 'Active Month',
-                    rightChart: _buildBarChart(thisMonthStart, thisMonthEnd, 4),
+                    rightChart: _buildBarChart(thisMonthStart, thisMonthEnd, 4, _formatMonthlyDate(today)),
                     leftTotal: _getSpentInRange(selMonthStart, selMonthEnd),
                     rightTotal: _getSpentInRange(thisMonthStart, thisMonthEnd),
                   );
@@ -574,9 +597,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
                         setState(() => _yearlyDate = DateTime(pickedYear, 1, 1));
                       }
                     }),
-                    leftChart: _buildBarChart(selYearStart, selYearEnd, 12),
+                    leftChart: _buildBarChart(selYearStart, selYearEnd, 12, _formatYearlyDate(_yearlyDate)),
                     rightTitle: 'Active Year',
-                    rightChart: _buildBarChart(thisYearStart, thisYearEnd, 12),
+                    rightChart: _buildBarChart(thisYearStart, thisYearEnd, 12, _formatYearlyDate(today)),
                     leftTotal: _getSpentInRange(selYearStart, selYearEnd),
                     rightTotal: _getSpentInRange(thisYearStart, thisYearEnd),
                   );

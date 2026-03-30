@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../../config/api_config.dart';
+
 /// FastAPI Gateway - All Firestore operations go through FastAPI backend
 /// This prevents direct Firestore exposure and handles errors properly
 class FastApiGateway {
@@ -9,10 +11,12 @@ class FastApiGateway {
 
   final http.Client _client;
 
-  // Change this to your FastAPI server URL
-  // Local: 'http://127.0.0.1:8000/api'
-  // Production: 'https://your-fastapi-server.com/api'
-  static const baseUrl = 'http://127.0.0.1:8000/api';
+  /// Get the base URL from centralized API config
+  /// To use the phone to connect to your computer's backend:
+  /// 1. Find your computer's local IP: run `ipconfig` in PowerShell
+  /// 2. Edit lib/config/api_config.dart
+  /// 3. Set devComputerIp = '192.168.x.x' (your actual IP)
+  static String get baseUrl => ApiConfig.baseUrl;
 
   // ============ USER OPERATIONS ============
 

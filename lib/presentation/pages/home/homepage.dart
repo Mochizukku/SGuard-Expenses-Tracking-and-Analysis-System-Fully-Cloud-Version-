@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
+import '../../../data/services/spending_analysis_service.dart';
+import '../analysis/graph_detail_page.dart';
 import '../recordbook/recordbookpage.dart';
 
 class HomePageContent extends StatelessWidget {
@@ -17,37 +19,17 @@ class HomePageContent extends StatelessWidget {
     const Color(0xFF165285),
   ];
 
-  double _sumForDay(DateTime targetDate) {
-    double total = 0.0;
-    for (final category in RecordBookData.categories) {
-      for (final item in category.items) {
-        if (_isSameDay(item.date, targetDate)) {
-          total += item.amount;
-        }
-      }
-    }
-    return total;
-  }
+  double _sumForDay(DateTime targetDate) => SpendingAnalysisService.totalInRange(
+        RecordBookData.categories,
+        SpendingAnalysisService.startOfDay(targetDate),
+        SpendingAnalysisService.endOfDay(targetDate),
+      );
 
-  Map<String, double> _categoryTotalsForDay(DateTime targetDate) {
-    final totals = <String, double>{};
-    for (final category in RecordBookData.categories) {
-      double subtotal = 0.0;
-      for (final item in category.items) {
-        if (_isSameDay(item.date, targetDate)) {
-          subtotal += item.amount;
-        }
-      }
-      if (subtotal > 0) {
-        totals[category.name] = subtotal;
-      }
-    }
-    return totals;
-  }
-
-  bool _isSameDay(DateTime a, DateTime b) {
-    return a.year == b.year && a.month == b.month && a.day == b.day;
-  }
+  Map<String, double> _categoryTotalsForDay(DateTime targetDate) => SpendingAnalysisService.categoryTotalsInRange(
+        RecordBookData.categories,
+        SpendingAnalysisService.startOfDay(targetDate),
+        SpendingAnalysisService.endOfDay(targetDate),
+      );
 
   String _trendLabel(double today, double yesterday) {
     if (today > yesterday) return 'increased';
@@ -107,7 +89,25 @@ class HomePageContent extends StatelessWidget {
     return value.toStringAsFixed(2);
   }
 
-  Widget _buildYesterdayChart(Map<String, double> categoryTotals) {
+  String _formatLongDate(DateTime date) {
+    const monthNames = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return '${monthNames[date.month - 1]} ${date.day}, ${date.year}';
+  }
+
+  Widget _buildYesterdayChart(BuildContext context, DateTime targetDate, Map<String, double> categoryTotals) {
     if (categoryTotals.isEmpty) {
       return const SizedBox(
         height: 220,
@@ -140,13 +140,33 @@ class HomePageContent extends StatelessWidget {
       return section;
     }).toList();
 
-    return SizedBox(
-      height: 260,
-      child: PieChart(
-        PieChartData(
-          sections: sections,
-          centerSpaceRadius: 0,
-          sectionsSpace: 0,
+    return InkWell(
+      onTap: () {
+        final filteredCategories = SpendingAnalysisService.categoriesInRange(
+          RecordBookData.categories,
+          SpendingAnalysisService.startOfDay(targetDate),
+          SpendingAnalysisService.endOfDay(targetDate),
+        );
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => GraphDetailPage(
+              title: 'Daily Comparison Details',
+              periodLabel: _formatLongDate(targetDate),
+              chartType: GraphDetailChartType.pie,
+              categories: filteredCategories,
+              total: total,
+            ),
+          ),
+        );
+      },
+      child: SizedBox(
+        height: 260,
+        child: PieChart(
+          PieChartData(
+            sections: sections,
+            centerSpaceRadius: 0,
+            sectionsSpace: 0,
+          ),
         ),
       ),
     );
@@ -244,7 +264,7 @@ class HomePageContent extends StatelessWidget {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: 12),
-              _buildYesterdayChart(yesterdayCategoryTotals),
+              _buildYesterdayChart(context, yesterdayDate, yesterdayCategoryTotals),
               const SizedBox(height: 20),
               Text(
                 insight,

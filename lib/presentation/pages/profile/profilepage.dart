@@ -8,7 +8,7 @@ import '../../../data/services/record_export_service.dart';
 import '../signin_or_signup/loginpage.dart';
 import '../recordbook/recordbookpage.dart';
 import 'managerecordpage.dart';
-import 'profile_action_page.dart';
+import 'settingpage.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -212,12 +212,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  void _openActionPage(String title) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ProfileActionPage(title: title)),
-    );
-  }
-
   Widget _buildStatsCard(String title, String value) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -406,7 +400,9 @@ class _ProfilePageState extends State<ProfilePage> {
                   _buildActionButton(
                     'Settings',
                     Icons.settings,
-                    () => _openActionPage('Settings'),
+                    () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const SettingPage()),
+                    ),
                   ),
                   _buildActionButton(
                     user == null ? 'Log in' : 'Sign out',

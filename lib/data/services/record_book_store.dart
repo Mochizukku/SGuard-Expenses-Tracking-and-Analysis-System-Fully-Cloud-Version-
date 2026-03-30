@@ -62,6 +62,17 @@ class PrepareTodayResult {
   final String serverDateKey;
 }
 
+class RecordStorePermissionDeniedException implements Exception {
+  const RecordStorePermissionDeniedException(this.operation);
+
+  final String operation;
+
+  @override
+  String toString() {
+    return 'Firestore permission denied while performing $operation.';
+  }
+}
+
 class RecordBookStore {
   RecordBookStore._();
 
@@ -178,7 +189,14 @@ class RecordBookStore {
     }
 
     final snapshot = buildCurrentSnapshot();
-    await _saveSnapshotForUser(user.uid, snapshot, updateResetDay: false);
+    try {
+      await _saveSnapshotForUser(user.uid, snapshot, updateResetDay: false);
+    } on FirebaseException catch (error) {
+      if (_isPermissionDenied(error)) {
+        throw const RecordStorePermissionDeniedException('saving current data to cloud');
+      }
+      rethrow;
+    }
   }
 
   static Future<void> _saveSnapshotForUser(
@@ -205,10 +223,17 @@ class RecordBookStore {
       return <String>[];
     }
 
-    await _migrateLegacySnapshotIfNeeded(user.uid);
-    final collection = await _firestore.collection('users').doc(user.uid).collection('dates').get();
-    final keys = collection.docs.map((doc) => doc.id).toList()..sort((a, b) => b.compareTo(a));
-    return keys;
+    try {
+      await _migrateLegacySnapshotIfNeeded(user.uid);
+      final collection = await _firestore.collection('users').doc(user.uid).collection('dates').get();
+      final keys = collection.docs.map((doc) => doc.id).toList()..sort((a, b) => b.compareTo(a));
+      return keys;
+    } on FirebaseException catch (error) {
+      if (_isPermissionDenied(error)) {
+        throw const RecordStorePermissionDeniedException('listing cloud date keys');
+      }
+      rethrow;
+    }
   }
 
   static Future<DailyRecordSnapshot?> fetchCloudSnapshotByDateKey(String dateKey) async {
@@ -217,13 +242,20 @@ class RecordBookStore {
       return null;
     }
 
-    await _migrateLegacySnapshotIfNeeded(user.uid);
-    final doc = await _firestore.collection('users').doc(user.uid).collection('dates').doc(dateKey).get();
-    if (!doc.exists || doc.data() == null) {
-      return null;
-    }
+    try {
+      await _migrateLegacySnapshotIfNeeded(user.uid);
+      final doc = await _firestore.collection('users').doc(user.uid).collection('dates').doc(dateKey).get();
+      if (!doc.exists || doc.data() == null) {
+        return null;
+      }
 
-    return DailyRecordSnapshot.fromMap(doc.data()!, fallbackDateKey: doc.id);
+      return DailyRecordSnapshot.fromMap(doc.data()!, fallbackDateKey: doc.id);
+    } on FirebaseException catch (error) {
+      if (_isPermissionDenied(error)) {
+        throw const RecordStorePermissionDeniedException('fetching cloud snapshot');
+      }
+      rethrow;
+    }
   }
 
   static Future<DailyRecordSnapshot?> loadCloudSnapshotByDateKey(String dateKey) async {
@@ -252,94 +284,119 @@ class RecordBookStore {
       return PrepareTodayResult(didReset: false, serverDateKey: localDateKey);
     }
 
-    await _migrateLegacySnapshotIfNeeded(user.uid);
+    try {
+      await _migrateLegacySnapshotIfNeeded(user.uid);
 
-    final serverNow = await _fetchServerNow(user.uid);
-    final serverDateKey = dateKeyFromDate(serverNow.toLocal());
-    final userDoc = _firestore.collection('users').doc(user.uid);
-    final userSnapshot = await userDoc.get();
-    final userData = userSnapshot.data() ?? <String, dynamic>{};
-    final lastResetDay = userData['lastResetDay'] as String?;
+      final serverNow = await _fetchServerNow(user.uid);
+      final serverDateKey = dateKeyFromDate(serverNow.toLocal());
+      final userDoc = _firestore.collection('users').doc(user.uid);
+      final userSnapshot = await userDoc.get();
+      final userData = userSnapshot.data() ?? <String, dynamic>{};
+      final lastResetDay = userData['lastResetDay'] as String?;
 
-    if (lastResetDay == serverDateKey) {
-      if (dateKeyFromDate(RecordBookData.activeDate) != serverDateKey) {
-        final todaySnapshot = await fetchCloudSnapshotByDateKey(serverDateKey);
-        if (todaySnapshot != null) {
-          applySnapshot(todaySnapshot);
-          await saveLocalSnapshot();
+      if (lastResetDay == serverDateKey) {
+        if (dateKeyFromDate(RecordBookData.activeDate) != serverDateKey) {
+          final todaySnapshot = await fetchCloudSnapshotByDateKey(serverDateKey);
+          if (todaySnapshot != null) {
+            applySnapshot(todaySnapshot);
+            await saveLocalSnapshot();
+          }
         }
+        return PrepareTodayResult(didReset: false, serverDateKey: serverDateKey);
       }
-      return PrepareTodayResult(didReset: false, serverDateKey: serverDateKey);
-    }
 
-    final todayDoc = await userDoc.collection('dates').doc(serverDateKey).get();
-    DailyRecordSnapshot snapshot;
+      final todayDoc = await userDoc.collection('dates').doc(serverDateKey).get();
+      DailyRecordSnapshot snapshot;
 
-    if (todayDoc.exists && todayDoc.data() != null) {
-      snapshot = DailyRecordSnapshot.fromMap(todayDoc.data()!, fallbackDateKey: serverDateKey);
-    } else {
-      final templateCategories = RecordBookData.categories.isEmpty
-          ? defaultCategories()
-          : emptyCategoriesFromTemplate(RecordBookData.categories);
-      snapshot = DailyRecordSnapshot(
-        dateKey: serverDateKey,
-        balance: RecordBookData.balance,
-        categories: templateCategories,
+      if (todayDoc.exists && todayDoc.data() != null) {
+        snapshot = DailyRecordSnapshot.fromMap(todayDoc.data()!, fallbackDateKey: serverDateKey);
+      } else {
+        final templateCategories = RecordBookData.categories.isEmpty
+            ? defaultCategories()
+            : emptyCategoriesFromTemplate(RecordBookData.categories);
+        snapshot = DailyRecordSnapshot(
+          dateKey: serverDateKey,
+          balance: RecordBookData.balance,
+          categories: templateCategories,
+        );
+        await _saveSnapshotForUser(user.uid, snapshot, updateResetDay: true);
+      }
+
+      await userDoc.set(
+        {
+          'lastResetDay': serverDateKey,
+          'lastServerClockAt': Timestamp.fromDate(serverNow),
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
       );
-      await _saveSnapshotForUser(user.uid, snapshot, updateResetDay: true);
+
+      applySnapshot(snapshot);
+      await saveLocalSnapshot();
+
+      return PrepareTodayResult(didReset: true, serverDateKey: serverDateKey);
+    } on FirebaseException catch (error) {
+      if (_isPermissionDenied(error)) {
+        throw const RecordStorePermissionDeniedException('preparing today for the authenticated user');
+      }
+      rethrow;
     }
-
-    await userDoc.set(
-      {
-        'lastResetDay': serverDateKey,
-        'lastServerClockAt': Timestamp.fromDate(serverNow),
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
-
-    applySnapshot(snapshot);
-    await saveLocalSnapshot();
-
-    return PrepareTodayResult(didReset: true, serverDateKey: serverDateKey);
   }
 
   static Future<void> _migrateLegacySnapshotIfNeeded(String userId) async {
-    final userDoc = _firestore.collection('users').doc(userId);
-    final doc = await userDoc.get();
-    final data = doc.data();
-    if (data == null || data['categories'] == null) {
-      return;
-    }
+    try {
+      final userDoc = _firestore.collection('users').doc(userId);
+      final doc = await userDoc.get();
+      final data = doc.data();
+      if (data == null || data['categories'] == null) {
+        return;
+      }
 
-    final migratedDateKey = dateKeyFromDate(DateTime.now());
-    final datesDoc = await userDoc.collection('dates').doc(migratedDateKey).get();
-    if (!datesDoc.exists) {
-      final legacySnapshot = DailyRecordSnapshot(
-        dateKey: migratedDateKey,
-        balance: (data['balance'] as num?)?.toDouble() ?? 0.0,
-        categories: (data['categories'] as List<dynamic>? ?? const [])
-            .map((entry) => SpendingCategory.fromJson(Map<String, dynamic>.from(entry as Map)))
-            .toList(),
+      final migratedDateKey = dateKeyFromDate(DateTime.now());
+      final datesDoc = await userDoc.collection('dates').doc(migratedDateKey).get();
+      if (!datesDoc.exists) {
+        final legacySnapshot = DailyRecordSnapshot(
+          dateKey: migratedDateKey,
+          balance: (data['balance'] as num?)?.toDouble() ?? 0.0,
+          categories: (data['categories'] as List<dynamic>? ?? const [])
+              .map((entry) => SpendingCategory.fromJson(Map<String, dynamic>.from(entry as Map)))
+              .toList(),
+        );
+        await _saveSnapshotForUser(userId, legacySnapshot, updateResetDay: false);
+      }
+
+      await userDoc.set(
+        {
+          'categories': FieldValue.delete(),
+          'startDate': FieldValue.delete(),
+          'endDate': FieldValue.delete(),
+        },
+        SetOptions(merge: true),
       );
-      await _saveSnapshotForUser(userId, legacySnapshot, updateResetDay: false);
+    } on FirebaseException catch (error) {
+      if (_isPermissionDenied(error)) {
+        throw const RecordStorePermissionDeniedException('migrating legacy Firestore snapshot');
+      }
+      rethrow;
     }
-
-    await userDoc.set(
-      {
-        'categories': FieldValue.delete(),
-        'startDate': FieldValue.delete(),
-        'endDate': FieldValue.delete(),
-      },
-      SetOptions(merge: true),
-    );
   }
 
   static Future<DateTime> _fetchServerNow(String userId) async {
-    final clockDoc = _firestore.collection('users').doc(userId).collection('_system').doc('clock');
-    await clockDoc.set({'serverNow': FieldValue.serverTimestamp()}, SetOptions(merge: true));
-    final snapshot = await clockDoc.get();
-    final timestamp = snapshot.data()?['serverNow'] as Timestamp?;
-    return timestamp?.toDate() ?? DateTime.now().toUtc();
+    try {
+      final clockDoc = _firestore.collection('users').doc(userId).collection('_system').doc('clock');
+      await clockDoc.set({'serverNow': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+      final snapshot = await clockDoc.get();
+      final timestamp = snapshot.data()?['serverNow'] as Timestamp?;
+      return timestamp?.toDate() ?? DateTime.now().toUtc();
+    } on FirebaseException catch (error) {
+      if (_isPermissionDenied(error)) {
+        throw const RecordStorePermissionDeniedException('reading server time from Firestore');
+      }
+      rethrow;
+    }
+  }
+
+  static bool _isPermissionDenied(FirebaseException error) {
+    return error.code == 'permission-denied';
   }
 }

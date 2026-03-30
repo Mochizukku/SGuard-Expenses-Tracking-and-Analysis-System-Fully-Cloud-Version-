@@ -1,9 +1,11 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'analysis/analysispage.dart';
 import 'home/homepage.dart';
 import 'profile/profilepage.dart';
 import 'recordbook/recordbookpage.dart';
+import 'signin_or_signup/loginpage.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -113,7 +115,8 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  Widget _buildBottomNavigation() {
+  Widget _buildBottomNavigation(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).padding.bottom;
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -125,7 +128,7 @@ class _AppShellState extends State<AppShell> {
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+      padding: EdgeInsets.fromLTRB(28, 12, 28, 12 + bottomInset),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: List.generate(_bottomIcons.length, (index) {
@@ -147,6 +150,91 @@ class _AppShellState extends State<AppShell> {
             ),
           );
         }),
+      ),
+    );
+  }
+
+  Widget _buildDrawer() {
+    return Drawer(
+      child: Column(
+        children: [
+          DrawerHeader(
+            decoration: const BoxDecoration(
+              color: Color(0xFF004AAD),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Image.asset(
+                  'assets/images/Logo.png',
+                  width: 60,
+                  fit: BoxFit.contain,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'SGUARD',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.home),
+            title: const Text('Home'),
+            selected: _selectedIndex == 0,
+            onTap: () {
+              _setPage(0);
+              Navigator.of(context).pop();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.add),
+            title: const Text('Record Book'),
+            selected: _selectedIndex == 1,
+            onTap: () {
+              _setPage(1);
+              Navigator.of(context).pop();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.bar_chart),
+            title: const Text('Analysis'),
+            selected: _selectedIndex == 2,
+            onTap: () {
+              _setPage(2);
+              Navigator.of(context).pop();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.person),
+            title: const Text('Profile'),
+            selected: _selectedIndex == 3,
+            onTap: () {
+              _setPage(3);
+              Navigator.of(context).pop();
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.red),
+            title: const Text('Sign Out', style: TextStyle(color: Colors.red)),
+            onTap: () async {
+              Navigator.of(context).pop();
+              await FirebaseAuth.instance.signOut();
+              if (mounted) {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const LoginPage()),
+                  (route) => false,
+                );
+              }
+            },
+          ),
+        ],
       ),
     );
   }
@@ -178,10 +266,11 @@ class _AppShellState extends State<AppShell> {
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
+        drawer: _buildDrawer(),
         appBar: _selectedIndex == 3 ? null : _buildTopNavigation(),
         backgroundColor: Colors.white,
         body: _buildPageView(),
-        bottomNavigationBar: _buildBottomNavigation(),
+        bottomNavigationBar: _buildBottomNavigation(context),
       ),
     );
   }

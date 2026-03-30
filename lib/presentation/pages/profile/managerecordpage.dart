@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 
 import '../../../data/services/record_book_store.dart';
-import '../../../data/services/record_export_service.dart';
 import '../recordbook/recordbookpage.dart';
+import 'record_export_page.dart';
 
 class ManageRecordPage extends StatefulWidget {
-  const ManageRecordPage({super.key});
+  const ManageRecordPage({
+    super.key,
+    this.dateKeysLoader,
+    this.snapshotLoader,
+  });
+
+  final Future<List<String>> Function()? dateKeysLoader;
+  final Future<DailyRecordSnapshot?> Function(String dateKey)? snapshotLoader;
 
   @override
   State<ManageRecordPage> createState() => _ManageRecordPageState();
@@ -14,6 +21,7 @@ class ManageRecordPage extends StatefulWidget {
 class _ManageRecordPageState extends State<ManageRecordPage> {
   bool _isLoading = true;
   List<String> _cloudDates = <String>[];
+  DateTime? _selectedMonth;
 
   @override
   void initState() {
@@ -42,19 +50,22 @@ class _ManageRecordPageState extends State<ManageRecordPage> {
 
   Future<void> _refreshDates() async {
     setState(() => _isLoading = true);
-    final dates = await RecordBookStore.listCloudDateKeys();
+    final dates = await (widget.dateKeysLoader?.call() ?? RecordBookStore.listCloudDateKeys());
     if (!mounted) {
       return;
     }
     setState(() {
       _cloudDates = dates;
+      _selectedMonth ??= dates.isNotEmpty ? DateTime.parse(dates.first) : RecordBookData.activeDate;
       _isLoading = false;
     });
   }
 
   Future<void> _loadDate(String dateKey) async {
     setState(() => _isLoading = true);
-    final snapshot = await RecordBookStore.loadCloudSnapshotByDateKey(dateKey);
+    final snapshot = widget.snapshotLoader != null
+        ? await widget.snapshotLoader!(dateKey)
+        : await RecordBookStore.loadCloudSnapshotByDateKey(dateKey);
     if (!mounted) {
       return;
     }
@@ -70,127 +81,210 @@ class _ManageRecordPageState extends State<ManageRecordPage> {
     );
   }
 
-  Future<void> _exportDate(String dateKey) async {
-    setState(() => _isLoading = true);
-    final snapshot = await RecordBookStore.fetchCloudSnapshotByDateKey(dateKey);
-    if (!mounted) {
-      return;
-    }
-    if (snapshot == null) {
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No cloud record found for export.')),
-      );
-      return;
-    }
+  void _openExportPage([String? dateKey]) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RecordExportPage(
+          initialDateKey: dateKey,
+          dateKeysLoader: widget.dateKeysLoader,
+          snapshotLoader: widget.snapshotLoader,
+        ),
+      ),
+    );
+  }
 
-    try {
-      await RecordExportService.exportSnapshotPdf(snapshot);
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to export PDF: $error')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+  String _monthLabel(DateTime date) {
+    const monthNames = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return '${monthNames[date.month - 1]} ${date.year}';
+  }
+
+  List<DateTime> _monthOptions() {
+    final months = <DateTime>{};
+    for (final key in _cloudDates) {
+      final date = DateTime.parse(key);
+      months.add(DateTime(date.year, date.month));
     }
+    final sorted = months.toList()..sort((a, b) => b.compareTo(a));
+    return sorted;
+  }
+
+  List<String> _datesForSelectedMonth() {
+    final selectedMonth = _selectedMonth;
+    if (selectedMonth == null) {
+      return _cloudDates;
+    }
+    return _cloudDates.where((key) {
+      final date = DateTime.parse(key);
+      return date.year == selectedMonth.year && date.month == selectedMonth.month;
+    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     final activeDateKey = RecordBookStore.dateKeyFromDate(RecordBookData.activeDate);
+    final monthOptions = _monthOptions();
+    final visibleDates = _datesForSelectedMonth();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Manage Records'),
-      ),
+      backgroundColor: const Color(0xFF1F1F1F),
       body: RefreshIndicator(
         onRefresh: _refreshDates,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Current Active Record',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            Center(
+              child: Container(
+                color: Colors.white,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                    Container(
+                      color: const Color(0xFF004AAD),
+                      padding: const EdgeInsets.only(top: 18, left: 12, right: 12, bottom: 18),
+                      child: Row(
+                        children: [
+                          InkWell(
+                            onTap: () => Navigator.of(context).pop(),
+                            child: Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                border: Border.all(color: const Color(0xFF2C69C8)),
+                              ),
+                              child: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          const Expanded(
+                            child: Text(
+                              'Manage Records',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: _isLoading ? null : () => _openExportPage(),
+                            icon: const Icon(Icons.picture_as_pdf_outlined, color: Colors.white),
+                            tooltip: 'Open export page',
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(_formatDateKey(activeDateKey)),
-                    const SizedBox(height: 6),
-                    Text('Balance: \$${RecordBookData.balance.toStringAsFixed(2)}'),
-                    Text('Categories: ${RecordBookData.categories.length}'),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        FilledButton.icon(
-                          onPressed: _isLoading ? null : RecordExportService.exportCurrentSnapshotPdf,
-                          icon: const Icon(Icons.picture_as_pdf),
-                          label: const Text('Export Active PDF'),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: _isLoading ? null : _refreshDates,
-                          icon: const Icon(Icons.sync),
-                          label: const Text('Refresh Cloud Dates'),
-                        ),
-                      ],
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+                      child: Row(
+                        children: [
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              border: Border.all(color: const Color(0xFFE8E1CC)),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<DateTime>(
+                                  value: _selectedMonth,
+                                  hint: const Text('Select month'),
+                                  items: monthOptions
+                                      .map(
+                                        (month) => DropdownMenuItem<DateTime>(
+                                          value: month,
+                                          child: Text(_monthLabel(month)),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: monthOptions.isEmpty
+                                      ? null
+                                      : (value) => setState(() => _selectedMonth = value),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Cloud Records',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 8),
-            if (_isLoading)
-              const Padding(
-                padding: EdgeInsets.only(top: 32),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (_cloudDates.isEmpty)
-              const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text('No cloud records found yet. Save today to cloud first.'),
-                ),
-              )
-            else
-              ..._cloudDates.map(
-                (dateKey) => Card(
-                  child: ListTile(
-                    title: Text(_formatDateKey(dateKey)),
-                    subtitle: Text(dateKey == activeDateKey ? 'Currently loaded' : 'Stored in cloud'),
-                    trailing: Wrap(
-                      spacing: 8,
-                      children: [
-                        IconButton(
-                          tooltip: 'Load',
-                          onPressed: _isLoading ? null : () => _loadDate(dateKey),
-                          icon: const Icon(Icons.folder_open),
+                    if (_isLoading)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 32, bottom: 32),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (_cloudDates.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text('No cloud records found yet. Save today to cloud first.'),
+                      )
+                    else if (visibleDates.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text('No records stored for the selected month.'),
+                      )
+                    else
+                      ...visibleDates.map(
+                        (dateKey) => Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                          child: InkWell(
+                            onTap: _isLoading ? null : () => _loadDate(dateKey),
+                            onLongPress: _isLoading ? null : () => _openExportPage(dateKey),
+                            child: Container(
+                              color: const Color(0xFFD9D9D9),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 14,
+                                    height: 14,
+                                    color: Colors.white,
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Align(
+                                      alignment: Alignment.centerRight,
+                                      child: Text(
+                                        _formatDateKey(dateKey),
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: dateKey == activeDateKey ? FontWeight.w700 : FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
-                        IconButton(
-                          tooltip: 'Export PDF',
-                          onPressed: _isLoading ? null : () => _exportDate(dateKey),
-                          icon: const Icon(Icons.picture_as_pdf),
-                        ),
-                      ],
+                      ),
+                    const SizedBox(height: 10),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        'Tap a row to load it. Long-press a row to open export preview.',
+                        style: const TextStyle(fontSize: 12, color: Colors.black54),
+                      ),
                     ),
+                      const SizedBox(height: 20),
+                    ],
                   ),
                 ),
               ),
+            ),
           ],
         ),
       ),
