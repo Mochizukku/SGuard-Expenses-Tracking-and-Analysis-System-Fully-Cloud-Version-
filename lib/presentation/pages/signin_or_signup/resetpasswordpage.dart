@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../app_shell.dart';
+
 class ResetPasswordPage extends StatefulWidget {
   const ResetPasswordPage({super.key});
 
@@ -83,8 +85,14 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF004AAD),
         elevation: 0,
-        leading: const BackButton(
+        leading: BackButton(
           color: Colors.white,
+          onPressed: () {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const AppShell(initialIndex: 3)),
+              (route) => false,
+            );
+          },
         ),
       ),
       body: SafeArea(
@@ -200,8 +208,15 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       TextButton(
-                                        onPressed: () => Navigator.of(context).pop(),
-                                        child: const Text('Back to Sign In'),
+                                        onPressed: () {
+                                          Navigator.of(context).pushAndRemoveUntil(
+                                            MaterialPageRoute(
+                                              builder: (_) => const AppShell(initialIndex: 3),
+                                            ),
+                                            (route) => false,
+                                          );
+                                        },
+                                        child: const Text('Back to Profile'),
                                       ),
                                     ],
                                   ),

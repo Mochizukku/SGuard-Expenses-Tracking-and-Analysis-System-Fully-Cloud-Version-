@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../app_shell.dart';
+
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
 
@@ -87,8 +89,14 @@ class _RegisterPageState extends State<RegisterPage> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF004AAD),
         elevation: 0,
-        leading: const BackButton(
+        leading: BackButton(
           color: Colors.white,
+          onPressed: () {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const AppShell(initialIndex: 3)),
+              (route) => false,
+            );
+          },
         ),
       ),
       body: SafeArea(
@@ -217,7 +225,14 @@ class _RegisterPageState extends State<RegisterPage> {
                                     children: [
                                       const Text('Already have an account? '),
                                       TextButton(
-                                        onPressed: () => Navigator.of(context).pop(),
+                                        onPressed: () {
+                                          Navigator.of(context).pushAndRemoveUntil(
+                                            MaterialPageRoute(
+                                              builder: (_) => const AppShell(initialIndex: 3),
+                                            ),
+                                            (route) => false,
+                                          );
+                                        },
                                         child: const Text('Sign In'),
                                       ),
                                     ],

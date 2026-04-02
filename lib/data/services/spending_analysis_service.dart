@@ -1,4 +1,5 @@
 import '../../presentation/pages/recordbook/recordbookpage.dart';
+import 'record_book_store.dart';
 
 class SpendingAnalysisService {
   SpendingAnalysisService._();
@@ -72,5 +73,29 @@ class SpendingAnalysisService {
   ) {
     return categoriesInRange(categories, start, end)
         .fold<double>(0.0, (sum, category) => sum + category.total);
+  }
+
+  static Future<List<SpendingCategory>> historicalCategoriesInRange(
+    DateTime start,
+    DateTime end,
+  ) async {
+    final summary = await RecordBookStore.summarizeHistoryRange(start, end);
+    return summary.categories;
+  }
+
+  static Future<Map<String, double>> historicalCategoryTotalsInRange(
+    DateTime start,
+    DateTime end,
+  ) async {
+    final summary = await RecordBookStore.summarizeHistoryRange(start, end);
+    return summary.categoryTotals;
+  }
+
+  static Future<double> historicalTotalInRange(
+    DateTime start,
+    DateTime end,
+  ) async {
+    final summary = await RecordBookStore.summarizeHistoryRange(start, end);
+    return summary.total;
   }
 }

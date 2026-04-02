@@ -20,13 +20,17 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _rememberMe = true;
+  String? _authErrorMessage;
 
   Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _authErrorMessage = null;
+    });
     try {
       final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
@@ -106,7 +110,13 @@ class _LoginPageState extends State<LoginPage> {
       _goToAppShell();
     } on FirebaseAuthException catch (error) {
       if (mounted) {
-        _showMessage(error.message ?? 'Login failed.');
+        setState(() {
+          _authErrorMessage = error.code == 'invalid-credential' ||
+                  error.code == 'wrong-password' ||
+                  error.code == 'user-not-found'
+              ? 'Email or password does not match.'
+              : (error.message ?? 'Login failed.');
+        });
       }
     } catch (error, stackTrace) {
       debugPrint('Unexpected login error: $error');
@@ -115,7 +125,7 @@ class _LoginPageState extends State<LoginPage> {
         final message = error is StateError
             ? error.message
             : 'An error occurred during login: $error';
-        _showMessage(message);
+        setState(() => _authErrorMessage = message);
       }
     } finally {
       if (mounted) {
@@ -136,17 +146,33 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  InputDecoration _buildFieldDecoration(String label) {
+  InputDecoration _buildFieldDecoration(String label, {bool showError = false}) {
+    final borderColor = showError ? Colors.red : const Color(0xFFB8C5D4);
     return InputDecoration(
       labelText: label,
       contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(28),
-        borderSide: const BorderSide(width: 1.5, color: Color(0xFFB8C5D4)),
+        borderSide: BorderSide(width: 1.5, color: borderColor),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(28),
-        borderSide: const BorderSide(width: 1.5, color: Color(0xFF002D72)),
+        borderSide: BorderSide(
+          width: 1.5,
+          color: showError ? Colors.red : const Color(0xFF002D72),
+        ),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(28),
+        borderSide: BorderSide(width: 1.5, color: borderColor),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(28),
+        borderSide: const BorderSide(width: 1.5, color: Colors.red),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(28),
+        borderSide: const BorderSide(width: 1.5, color: Colors.red),
       ),
     );
   }
@@ -180,6 +206,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     const maxWidth = 420.0;
+    final showCredentialMismatch = _authErrorMessage == 'Email or password does not match.';
     return Scaffold(
       resizeToAvoidBottomInset: true,
       backgroundColor: const Color(0xFF004AAD),
@@ -249,7 +276,15 @@ class _LoginPageState extends State<LoginPage> {
                             children: [
                               TextFormField(
                                 controller: _emailController,
-                                decoration: _buildFieldDecoration('Email'),
+                                onChanged: (_) {
+                                  if (_authErrorMessage != null) {
+                                    setState(() => _authErrorMessage = null);
+                                  }
+                                },
+                                decoration: _buildFieldDecoration(
+                                  'Email',
+                                  showError: showCredentialMismatch,
+                                ),
                                 keyboardType: TextInputType.emailAddress,
                                 validator: (value) {
                                   if (value == null || value.trim().isEmpty) {
@@ -265,7 +300,15 @@ class _LoginPageState extends State<LoginPage> {
                               TextFormField(
                                 controller: _passwordController,
                                 obscureText: true,
-                                decoration: _buildFieldDecoration('Password'),
+                                onChanged: (_) {
+                                  if (_authErrorMessage != null) {
+                                    setState(() => _authErrorMessage = null);
+                                  }
+                                },
+                                decoration: _buildFieldDecoration(
+                                  'Password',
+                                  showError: showCredentialMismatch,
+                                ),
                                 validator: (value) {
                                   if (value == null || value.trim().isEmpty) {
                                     return 'Password is required';
@@ -276,6 +319,17 @@ class _LoginPageState extends State<LoginPage> {
                                   return null;
                                 },
                               ),
+                              if (_authErrorMessage != null) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  _authErrorMessage!,
+                                  style: TextStyle(
+                                    color: showCredentialMismatch ? Colors.red : Colors.red.shade700,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
                               const SizedBox(height: 12),
                               Align(
                                 alignment: Alignment.centerRight,

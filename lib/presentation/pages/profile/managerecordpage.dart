@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../data/services/record_book_store.dart';
 import '../recordbook/recordbookpage.dart';
 import 'record_export_page.dart';
+import 'record_history_detail_page.dart';
 
 class ManageRecordPage extends StatefulWidget {
   const ManageRecordPage({
@@ -20,8 +21,10 @@ class ManageRecordPage extends StatefulWidget {
 
 class _ManageRecordPageState extends State<ManageRecordPage> {
   bool _isLoading = true;
-  List<String> _cloudDates = <String>[];
+  List<String> _historyDates = <String>[];
   DateTime? _selectedMonth;
+
+  DateTime _normalizeMonth(DateTime date) => DateTime(date.year, date.month);
 
   @override
   void initState() {
@@ -50,35 +53,45 @@ class _ManageRecordPageState extends State<ManageRecordPage> {
 
   Future<void> _refreshDates() async {
     setState(() => _isLoading = true);
-    final dates = await (widget.dateKeysLoader?.call() ?? RecordBookStore.listCloudDateKeys());
+    final dates =
+        await (widget.dateKeysLoader?.call() ?? RecordBookStore.listHistoryDateKeys());
     if (!mounted) {
       return;
     }
     setState(() {
-      _cloudDates = dates;
-      _selectedMonth ??= dates.isNotEmpty ? DateTime.parse(dates.first) : RecordBookData.activeDate;
+      _historyDates = dates;
+      _selectedMonth ??= dates.isNotEmpty
+          ? _normalizeMonth(DateTime.parse(dates.first))
+          : _normalizeMonth(DateTime.now());
       _isLoading = false;
     });
   }
 
-  Future<void> _loadDate(String dateKey) async {
+  Future<void> _openDate(String dateKey) async {
     setState(() => _isLoading = true);
     final snapshot = widget.snapshotLoader != null
         ? await widget.snapshotLoader!(dateKey)
-        : await RecordBookStore.loadCloudSnapshotByDateKey(dateKey);
+        : await RecordBookStore.fetchHistorySnapshotByDateKey(dateKey);
     if (!mounted) {
       return;
     }
     setState(() => _isLoading = false);
     if (snapshot == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No cloud record found for that date.')),
+        const SnackBar(content: Text('No record found for that date.')),
       );
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Loaded ${_formatDateKey(dateKey)} into the record book.')),
+
+    final updated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => RecordHistoryDetailPage(snapshot: snapshot),
+      ),
     );
+
+    if (updated == true) {
+      await _refreshDates();
+    }
   }
 
   void _openExportPage([String? dateKey]) {
@@ -113,9 +126,9 @@ class _ManageRecordPageState extends State<ManageRecordPage> {
 
   List<DateTime> _monthOptions() {
     final months = <DateTime>{};
-    for (final key in _cloudDates) {
+    for (final key in _historyDates) {
       final date = DateTime.parse(key);
-      months.add(DateTime(date.year, date.month));
+      months.add(_normalizeMonth(date));
     }
     final sorted = months.toList()..sort((a, b) => b.compareTo(a));
     return sorted;
@@ -124,9 +137,9 @@ class _ManageRecordPageState extends State<ManageRecordPage> {
   List<String> _datesForSelectedMonth() {
     final selectedMonth = _selectedMonth;
     if (selectedMonth == null) {
-      return _cloudDates;
+      return _historyDates;
     }
-    return _cloudDates.where((key) {
+    return _historyDates.where((key) {
       final date = DateTime.parse(key);
       return date.year == selectedMonth.year && date.month == selectedMonth.month;
     }).toList();
@@ -153,132 +166,133 @@ class _ManageRecordPageState extends State<ManageRecordPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                    Container(
-                      color: const Color(0xFF004AAD),
-                      padding: const EdgeInsets.only(top: 18, left: 12, right: 12, bottom: 18),
-                      child: Row(
-                        children: [
-                          InkWell(
-                            onTap: () => Navigator.of(context).pop(),
-                            child: Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                border: Border.all(color: const Color(0xFF2C69C8)),
-                              ),
-                              child: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          const Expanded(
-                            child: Text(
-                              'Manage Records',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
+                      Container(
+                        color: const Color(0xFF004AAD),
+                        padding: const EdgeInsets.only(top: 18, left: 12, right: 12, bottom: 18),
+                        child: Row(
+                          children: [
+                            InkWell(
+                              onTap: () => Navigator.of(context).pop(),
+                              child: Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: const Color(0xFF2C69C8)),
+                                ),
+                                child: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
                               ),
                             ),
-                          ),
-                          IconButton(
-                            onPressed: _isLoading ? null : () => _openExportPage(),
-                            icon: const Icon(Icons.picture_as_pdf_outlined, color: Colors.white),
-                            tooltip: 'Open export page',
-                          ),
-                        ],
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-                      child: Row(
-                        children: [
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              border: Border.all(color: const Color(0xFFE8E1CC)),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<DateTime>(
-                                  value: _selectedMonth,
-                                  hint: const Text('Select month'),
-                                  items: monthOptions
-                                      .map(
-                                        (month) => DropdownMenuItem<DateTime>(
-                                          value: month,
-                                          child: Text(_monthLabel(month)),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: monthOptions.isEmpty
-                                      ? null
-                                      : (value) => setState(() => _selectedMonth = value),
+                            const SizedBox(width: 14),
+                            const Expanded(
+                              child: Text(
+                                'Manage Records',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ),
-                          ),
-                        ],
+                            IconButton(
+                              onPressed: _isLoading ? null : () => _openExportPage(),
+                              icon: const Icon(Icons.picture_as_pdf_outlined, color: Colors.white),
+                              tooltip: 'Open export page',
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    if (_isLoading)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 32, bottom: 32),
-                        child: Center(child: CircularProgressIndicator()),
-                      )
-                    else if (_cloudDates.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text('No cloud records found yet. Save today to cloud first.'),
-                      )
-                    else if (visibleDates.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text('No records stored for the selected month.'),
-                      )
-                    else
-                      ...visibleDates.map(
-                        (dateKey) => Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                          child: InkWell(
-                            onTap: _isLoading ? null : () => _loadDate(dateKey),
-                            onLongPress: _isLoading ? null : () => _openExportPage(dateKey),
-                            child: Container(
-                              color: const Color(0xFFD9D9D9),
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 14,
-                                    height: 14,
-                                    color: Colors.white,
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+                        child: Row(
+                          children: [
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                border: Border.all(color: const Color(0xFFE8E1CC)),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<DateTime>(
+                                    value: _selectedMonth,
+                                    hint: const Text('Select month'),
+                                    items: monthOptions
+                                        .map(
+                                          (month) => DropdownMenuItem<DateTime>(
+                                            value: month,
+                                            child: Text(_monthLabel(month)),
+                                          ),
+                                        )
+                                        .toList(),
+                                    onChanged: monthOptions.isEmpty
+                                        ? null
+                                        : (value) => setState(
+                                              () => _selectedMonth =
+                                                  value == null ? null : _normalizeMonth(value),
+                                            ),
                                   ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Align(
-                                      alignment: Alignment.centerRight,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (_isLoading)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 32, bottom: 32),
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      else if (_historyDates.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Text('No saved history found yet. Save or sync a record first.'),
+                        )
+                      else if (visibleDates.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Text('No records stored for the selected month.'),
+                        )
+                      else
+                        ...visibleDates.map(
+                          (dateKey) => Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                            child: InkWell(
+                              onTap: _isLoading ? null : () => _openDate(dateKey),
+                              onLongPress: _isLoading ? null : () => _openExportPage(dateKey),
+                              child: Container(
+                                color: const Color(0xFFD9D9D9),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      dateKey == activeDateKey ? Icons.calendar_today : Icons.history,
+                                      color: const Color(0xFF004AAD),
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
                                       child: Text(
                                         _formatDateKey(dateKey),
+                                        textAlign: TextAlign.right,
                                         style: TextStyle(
                                           fontSize: 15,
                                           fontWeight: dateKey == activeDateKey ? FontWeight.w700 : FontWeight.w500,
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
                         ),
+                      const SizedBox(height: 10),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          'Tap a row to open a historical record editor. Long-press a row to open export preview.',
+                          style: TextStyle(fontSize: 12, color: Colors.black54),
+                        ),
                       ),
-                    const SizedBox(height: 10),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        'Tap a row to load it. Long-press a row to open export preview.',
-                        style: const TextStyle(fontSize: 12, color: Colors.black54),
-                      ),
-                    ),
                       const SizedBox(height: 20),
                     ],
                   ),

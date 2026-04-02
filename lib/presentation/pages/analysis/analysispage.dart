@@ -1,8 +1,21 @@
-import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+
 import '../../../data/services/spending_analysis_service.dart';
 import 'graph_detail_page.dart';
 import '../recordbook/recordbookpage.dart';
+
+class _RangeAnalytics {
+  const _RangeAnalytics({
+    required this.categories,
+    required this.total,
+    required this.categoryTotals,
+  });
+
+  final List<SpendingCategory> categories;
+  final double total;
+  final Map<String, double> categoryTotals;
+}
 
 class AnalysisPage extends StatefulWidget {
   const AnalysisPage({super.key});
@@ -30,37 +43,48 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return _catColors[index % _catColors.length];
   }
 
-  double _getTotalSpent() {
-    double total = 0;
-    for (var c in RecordBookData.categories) {
-      for (var i in c.items) {
-        total += i.amount;
-      }
-    }
-    return total;
+  Future<_RangeAnalytics> _loadRangeAnalytics(DateTime start, DateTime end) async {
+    final categories =
+        await SpendingAnalysisService.historicalCategoriesInRange(start, end);
+    final total = await SpendingAnalysisService.historicalTotalInRange(start, end);
+    final categoryTotals =
+        await SpendingAnalysisService.historicalCategoryTotalsInRange(start, end);
+    return _RangeAnalytics(
+      categories: categories,
+      total: total,
+      categoryTotals: categoryTotals,
+    );
   }
 
-  double _getSpentInRange(DateTime start, DateTime end) =>
-      SpendingAnalysisService.totalInRange(RecordBookData.categories, start, end);
-
-  Map<String, double> _getCategorySpentInRange(DateTime start, DateTime end) =>
-      SpendingAnalysisService.categoryTotalsInRange(RecordBookData.categories, start, end);
-
-  List<SpendingCategory> _getCategoriesInRange(DateTime start, DateTime end) =>
-      SpendingAnalysisService.categoriesInRange(RecordBookData.categories, start, end);
-
   String _formatDailyDate(DateTime d) => '${_monthShort(d.month)} ${d.day}, ${d.year}';
+
   String _formatWeeklyDate(DateTime d) {
     final start = d.subtract(Duration(days: d.weekday % 7));
     final end = start.add(const Duration(days: 6));
     return '${_monthShort(start.month)}. ${start.day} - ${_monthShort(end.month)}. ${end.day}, ${start.year}';
   }
+
   String _formatMonthlyDate(DateTime d) => '${_monthLong(d.month)} ${d.year}';
   String _formatYearlyDate(DateTime d) => '${d.year}';
-  
-  String _monthShort(int m) => ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m-1];
-  String _monthLong(int m) => ["January","February","March","April","May","June","July","August","September","October","November","December"][m-1];
-  
+
+  String _monthShort(int m) =>
+      ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1];
+
+  String _monthLong(int m) => [
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December'
+      ][m - 1];
+
   Future<int?> _pickYear(int initialYear) async {
     int selectedYear = initialYear;
     return showDialog<int>(
@@ -179,9 +203,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   Future<DateTime?> _pickWeek(DateTime initial) async {
     int selectedYear = initial.year;
-    int selectedWeek = _weekOfYear(initial);
-    if (selectedWeek < 1) selectedWeek = 1;
-    if (selectedWeek > 53) selectedWeek = 53;
+    int selectedWeek = _weekOfYear(initial).clamp(1, 53);
     return showDialog<DateTime>(
       context: context,
       builder: (context) {
@@ -260,29 +282,26 @@ class _AnalysisPageState extends State<AnalysisPage> {
     required String title,
     required String periodLabel,
     required GraphDetailChartType chartType,
-    required DateTime start,
-    required DateTime end,
+    required _RangeAnalytics analytics,
   }) {
-    final categories = _getCategoriesInRange(start, end);
-    final total = _getSpentInRange(start, end);
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => GraphDetailPage(
           title: title,
           periodLabel: periodLabel,
           chartType: chartType,
-          categories: categories,
-          total: total,
+          categories: analytics.categories,
+          total: analytics.total,
         ),
       ),
     );
   }
 
-  Widget _buildDailyPieChart(DateTime date) {
-    final start = DateTime(date.year, date.month, date.day);
-    final end = DateTime(date.year, date.month, date.day, 23, 59, 59);
-    final catData = _getCategorySpentInRange(start, end);
-    
+  Widget _buildDailyPieChart(
+    DateTime date,
+    _RangeAnalytics analytics,
+  ) {
+    final catData = analytics.categoryTotals;
     if (catData.isEmpty) {
       return Container(
         height: 120,
@@ -307,8 +326,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
         title: 'Daily Comparison Details',
         periodLabel: _formatDailyDate(date),
         chartType: GraphDetailChartType.pie,
-        start: start,
-        end: end,
+        analytics: analytics,
       ),
       child: SizedBox(
         height: 120,
@@ -323,149 +341,190 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
-  Widget _buildBarChart(DateTime start, DateTime end, int divisions, String detailLabel) {
+  Widget _buildBarChart(
+    DateTime start,
+    DateTime end,
+    int divisions,
+    String detailLabel,
+    _RangeAnalytics analytics,
+  ) {
     final inclusiveDays = end.difference(start).inDays + 1;
     final divDuration = inclusiveDays ~/ divisions;
-    if (divDuration == 0) return const SizedBox(height: 150);
-    
+    if (divDuration == 0) {
+      return const SizedBox(height: 150);
+    }
+
     List<BarChartGroupData> groups = [];
-    final cats = RecordBookData.categories.map((c) => c.name).toList();
-    final catColorMap = {for (var i=0; i<cats.length; i++) cats[i]: _getCategoryColor(i)};
+    final cats = analytics.categories.map((c) => c.name).toList();
+    final catColorMap = {for (var i = 0; i < cats.length; i++) cats[i]: _getCategoryColor(i)};
 
     for (int i = 0; i < divisions; i++) {
-        final dStart = start.add(Duration(days: i * divDuration));
-        final dEnd = i == divisions - 1 ? end : dStart.add(Duration(days: divDuration - 1, hours: 23, minutes: 59));
-        
-        final cData = _getCategorySpentInRange(dStart, dEnd);
-        
-        List<BarChartRodStackItem> stackItems = [];
-        double yAcc = 0;
-        for (var c in cats) {
-            double v = cData[c] ?? 0;
-            if (v > 0) {
-               stackItems.add(BarChartRodStackItem(yAcc, yAcc + v, catColorMap[c]!));
-               yAcc += v;
-            }
+      final dStart = start.add(Duration(days: i * divDuration));
+      final dEnd = i == divisions - 1
+          ? end
+          : dStart.add(Duration(days: divDuration - 1, hours: 23, minutes: 59));
+
+      final cData = SpendingAnalysisService.categoryTotalsInRange(
+        analytics.categories,
+        dStart,
+        dEnd,
+      );
+
+      List<BarChartRodStackItem> stackItems = [];
+      double yAcc = 0;
+      for (var c in cats) {
+        final v = cData[c] ?? 0;
+        if (v > 0) {
+          stackItems.add(BarChartRodStackItem(yAcc, yAcc + v, catColorMap[c]!));
+          yAcc += v;
         }
-        
-        groups.add(
-            BarChartGroupData(
-                x: i,
-                barRods: [
-                    BarChartRodData(
-                        toY: yAcc > 0 ? yAcc : 0.01,
-                        width: 14,
-                        color: Colors.transparent,
-                        borderRadius: BorderRadius.zero,
-                        rodStackItems: stackItems.isNotEmpty ? stackItems : [BarChartRodStackItem(0, 0.01, Colors.transparent)],
-                    )
-                ]
+      }
+
+      groups.add(
+        BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: yAcc > 0 ? yAcc : 0.01,
+              width: 14,
+              color: Colors.transparent,
+              borderRadius: BorderRadius.zero,
+              rodStackItems: stackItems.isNotEmpty
+                  ? stackItems
+                  : [BarChartRodStackItem(0, 0.01, Colors.transparent)],
             )
-        );
+          ],
+        ),
+      );
     }
-    
+
     return InkWell(
       onTap: () => _openDetailPage(
         title: 'Comparison Details',
         periodLabel: detailLabel,
         chartType: GraphDetailChartType.bar,
-        start: start,
-        end: end,
+        analytics: analytics,
       ),
       child: SizedBox(
-          height: 150,
-          child: BarChart(
-              BarChartData(
-                  barGroups: groups,
-                  borderData: FlBorderData(show: false),
-                  titlesData: FlTitlesData(
-                      leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      bottomTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                              showTitles: true,
-                              getTitlesWidget: (val, meta) {
-                                  return Padding(
-                                      padding: const EdgeInsets.only(top: 4),
-                                      child: Text('W${val.toInt()+1}', style: const TextStyle(fontSize: 9, color: Colors.grey)),
-                                  );
-                              }
-                          )
-                      )
-                  ),
-                  gridData: const FlGridData(show: false),
-              )
-          )
+        height: 150,
+        child: BarChart(
+          BarChartData(
+            barGroups: groups,
+            borderData: FlBorderData(show: false),
+            titlesData: FlTitlesData(
+              leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              bottomTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  getTitlesWidget: (val, meta) {
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        'W${val.toInt() + 1}',
+                        style: const TextStyle(fontSize: 9, color: Colors.grey),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+            gridData: const FlGridData(show: false),
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildComparisonRow({
     required Widget leftControl,
-    required Widget leftChart,
+    required Future<_RangeAnalytics> leftFuture,
     required String rightTitle,
-    required Widget rightChart,
-    required double leftTotal,
-    required double rightTotal,
+    required Future<_RangeAnalytics> rightFuture,
+    required Widget Function(_RangeAnalytics data) leftChartBuilder,
+    required Widget Function(_RangeAnalytics data) rightChartBuilder,
+    required Widget Function(double leftTotal, double rightTotal) trendBuilder,
   }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 32),
+      child: FutureBuilder<List<_RangeAnalytics>>(
+        future: Future.wait([leftFuture, rightFuture]),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+
+          final leftData = snapshot.data![0];
+          final rightData = snapshot.data![1];
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  children: [
+                    leftControl,
+                    const SizedBox(height: 16),
+                    leftChartBuilder(leftData),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(rightTitle, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                        const SizedBox(width: 4),
+                        trendBuilder(leftData.total, rightData.total),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    rightChartBuilder(rightData),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildTrendBadge(double leftTotal, double rightTotal) {
     final diff = rightTotal - leftTotal;
-    final isUp = diff > 0;
     final isDown = diff < 0;
+    final isUp = diff > 0;
     final trendMessage = isUp
         ? 'Spending Increased'
         : isDown
             ? 'Spending Decreased'
             : 'No Changes';
-    
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 32),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              children: [
-                leftControl,
-                const SizedBox(height: 16),
-                leftChart,
-              ],
-            )
+
+    if (leftTotal <= 0 && rightTotal <= 0) {
+      return const SizedBox.shrink();
+    }
+
+    return GestureDetector(
+      onLongPress: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(trendMessage),
+            duration: const Duration(seconds: 1),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(rightTitle, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                    const SizedBox(width: 4),
-                    if (leftTotal > 0 || rightTotal > 0)
-                      GestureDetector(
-                        onLongPress: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(trendMessage),
-                              duration: const Duration(seconds: 1),
-                            ),
-                          );
-                        },
-                        child: Icon(
-                          isDown ? Icons.arrow_downward : Icons.arrow_upward,
-                          color: isDown ? Colors.green : Colors.red,
-                          size: 14,
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                rightChart,
-              ],
-            )
-          ),
-        ],
-      )
+        );
+      },
+      child: Icon(
+        isDown ? Icons.arrow_downward : Icons.arrow_upward,
+        color: isDown ? Colors.green : Colors.red,
+        size: 14,
+      ),
     );
   }
 
@@ -474,12 +533,35 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return ValueListenableBuilder<int>(
       valueListenable: RecordBookData.revision,
       builder: (context, _, __) {
-        final totalSpent = _getTotalSpent();
-        final rawProgress = RecordBookData.balance > 0 ? totalSpent / RecordBookData.balance : 0.0;
+        final totalSpent = RecordBookData.categories
+            .expand((category) => category.items)
+            .fold<double>(0.0, (sum, item) => sum + item.amount);
+        final rawProgress =
+            RecordBookData.balance > 0 ? totalSpent / RecordBookData.balance : 0.0;
         final clampedProgress = rawProgress.clamp(0.0, 1.0).toDouble();
         final progressPercent = (clampedProgress * 100).toStringAsFixed(2);
         final progressColor = clampedProgress >= 1.0 ? Colors.red : Colors.blue;
         final today = RecordBookData.activeDate;
+
+        final dailyStart = DateTime(_dailyDate.year, _dailyDate.month, _dailyDate.day);
+        final dailyEnd = DateTime(_dailyDate.year, _dailyDate.month, _dailyDate.day, 23, 59, 59);
+        final activeDailyStart = DateTime(today.year, today.month, today.day);
+        final activeDailyEnd = DateTime(today.year, today.month, today.day, 23, 59, 59);
+
+        final selWeekStart = _weeklyDate.subtract(Duration(days: _weeklyDate.weekday % 7));
+        final selWeekEnd = selWeekStart.add(const Duration(days: 6, hours: 23, minutes: 59));
+        final thisWeekStart = today.subtract(Duration(days: today.weekday % 7));
+        final thisWeekEnd = thisWeekStart.add(const Duration(days: 6, hours: 23, minutes: 59));
+
+        final selMonthStart = DateTime(_monthlyDate.year, _monthlyDate.month, 1);
+        final selMonthEnd = DateTime(_monthlyDate.year, _monthlyDate.month + 1, 0, 23, 59, 59);
+        final thisMonthStart = DateTime(today.year, today.month, 1);
+        final thisMonthEnd = DateTime(today.year, today.month + 1, 0, 23, 59, 59);
+
+        final selYearStart = DateTime(_yearlyDate.year, 1, 1);
+        final selYearEnd = DateTime(_yearlyDate.year, 12, 31, 23, 59, 59);
+        final thisYearStart = DateTime(today.year, 1, 1);
+        final thisYearEnd = DateTime(today.year, 12, 31, 23, 59, 59);
 
         return Container(
           color: Colors.white,
@@ -532,78 +614,61 @@ class _AnalysisPageState extends State<AnalysisPage> {
                       setState(() => _dailyDate = picked);
                     }
                   }),
-                  leftChart: _buildDailyPieChart(_dailyDate),
+                  leftFuture: _loadRangeAnalytics(dailyStart, dailyEnd),
                   rightTitle: 'Active Day',
-                  rightChart: _buildDailyPieChart(today),
-                  leftTotal: _getSpentInRange(
-                    DateTime(_dailyDate.year, _dailyDate.month, _dailyDate.day),
-                    DateTime(_dailyDate.year, _dailyDate.month, _dailyDate.day, 23, 59, 59),
-                  ),
-                  rightTotal: _getSpentInRange(
-                    DateTime(today.year, today.month, today.day),
-                    DateTime(today.year, today.month, today.day, 23, 59, 59),
-                  ),
+                  rightFuture: _loadRangeAnalytics(activeDailyStart, activeDailyEnd),
+                  leftChartBuilder: (data) => _buildDailyPieChart(_dailyDate, data),
+                  rightChartBuilder: (data) => _buildDailyPieChart(today, data),
+                  trendBuilder: _buildTrendBadge,
                 ),
-                Builder(builder: (context) {
-                  final selWeekStart = _weeklyDate.subtract(Duration(days: _weeklyDate.weekday % 7));
-                  final selWeekEnd = selWeekStart.add(const Duration(days: 6, hours: 23, minutes: 59));
-                  final thisWeekStart = today.subtract(Duration(days: today.weekday % 7));
-                  final thisWeekEnd = thisWeekStart.add(const Duration(days: 6, hours: 23, minutes: 59));
-
-                  return _buildComparisonRow(
-                    leftControl: _buildDateSelector(_formatWeeklyDate(_weeklyDate), () async {
-                      final picked = await _pickWeek(_weeklyDate);
-                      if (picked != null) {
-                        setState(() => _weeklyDate = picked);
-                      }
-                    }),
-                    leftChart: _buildBarChart(selWeekStart, selWeekEnd, 7, _formatWeeklyDate(_weeklyDate)),
-                    rightTitle: 'Active Week',
-                    rightChart: _buildBarChart(thisWeekStart, thisWeekEnd, 7, _formatWeeklyDate(today)),
-                    leftTotal: _getSpentInRange(selWeekStart, selWeekEnd),
-                    rightTotal: _getSpentInRange(thisWeekStart, thisWeekEnd),
-                  );
-                }),
-                Builder(builder: (context) {
-                  final selMonthStart = DateTime(_monthlyDate.year, _monthlyDate.month, 1);
-                  final selMonthEnd = DateTime(_monthlyDate.year, _monthlyDate.month + 1, 0, 23, 59, 59);
-                  final thisMonthStart = DateTime(today.year, today.month, 1);
-                  final thisMonthEnd = DateTime(today.year, today.month + 1, 0, 23, 59, 59);
-
-                  return _buildComparisonRow(
-                    leftControl: _buildDateSelector(_formatMonthlyDate(_monthlyDate), () async {
-                      final picked = await _pickMonthYear(_monthlyDate);
-                      if (picked != null) {
-                        setState(() => _monthlyDate = picked);
-                      }
-                    }),
-                    leftChart: _buildBarChart(selMonthStart, selMonthEnd, 4, _formatMonthlyDate(_monthlyDate)),
-                    rightTitle: 'Active Month',
-                    rightChart: _buildBarChart(thisMonthStart, thisMonthEnd, 4, _formatMonthlyDate(today)),
-                    leftTotal: _getSpentInRange(selMonthStart, selMonthEnd),
-                    rightTotal: _getSpentInRange(thisMonthStart, thisMonthEnd),
-                  );
-                }),
-                Builder(builder: (context) {
-                  final selYearStart = DateTime(_yearlyDate.year, 1, 1);
-                  final selYearEnd = DateTime(_yearlyDate.year, 12, 31, 23, 59, 59);
-                  final thisYearStart = DateTime(today.year, 1, 1);
-                  final thisYearEnd = DateTime(today.year, 12, 31, 23, 59, 59);
-
-                  return _buildComparisonRow(
-                    leftControl: _buildDateSelector(_formatYearlyDate(_yearlyDate), () async {
-                      final pickedYear = await _pickYear(_yearlyDate.year);
-                      if (pickedYear != null) {
-                        setState(() => _yearlyDate = DateTime(pickedYear, 1, 1));
-                      }
-                    }),
-                    leftChart: _buildBarChart(selYearStart, selYearEnd, 12, _formatYearlyDate(_yearlyDate)),
-                    rightTitle: 'Active Year',
-                    rightChart: _buildBarChart(thisYearStart, thisYearEnd, 12, _formatYearlyDate(today)),
-                    leftTotal: _getSpentInRange(selYearStart, selYearEnd),
-                    rightTotal: _getSpentInRange(thisYearStart, thisYearEnd),
-                  );
-                }),
+                _buildComparisonRow(
+                  leftControl: _buildDateSelector(_formatWeeklyDate(_weeklyDate), () async {
+                    final picked = await _pickWeek(_weeklyDate);
+                    if (picked != null) {
+                      setState(() => _weeklyDate = picked);
+                    }
+                  }),
+                  leftFuture: _loadRangeAnalytics(selWeekStart, selWeekEnd),
+                  rightTitle: 'Active Week',
+                  rightFuture: _loadRangeAnalytics(thisWeekStart, thisWeekEnd),
+                  leftChartBuilder: (data) =>
+                      _buildBarChart(selWeekStart, selWeekEnd, 7, _formatWeeklyDate(_weeklyDate), data),
+                  rightChartBuilder: (data) =>
+                      _buildBarChart(thisWeekStart, thisWeekEnd, 7, _formatWeeklyDate(today), data),
+                  trendBuilder: _buildTrendBadge,
+                ),
+                _buildComparisonRow(
+                  leftControl: _buildDateSelector(_formatMonthlyDate(_monthlyDate), () async {
+                    final picked = await _pickMonthYear(_monthlyDate);
+                    if (picked != null) {
+                      setState(() => _monthlyDate = picked);
+                    }
+                  }),
+                  leftFuture: _loadRangeAnalytics(selMonthStart, selMonthEnd),
+                  rightTitle: 'Active Month',
+                  rightFuture: _loadRangeAnalytics(thisMonthStart, thisMonthEnd),
+                  leftChartBuilder: (data) =>
+                      _buildBarChart(selMonthStart, selMonthEnd, 4, _formatMonthlyDate(_monthlyDate), data),
+                  rightChartBuilder: (data) =>
+                      _buildBarChart(thisMonthStart, thisMonthEnd, 4, _formatMonthlyDate(today), data),
+                  trendBuilder: _buildTrendBadge,
+                ),
+                _buildComparisonRow(
+                  leftControl: _buildDateSelector(_formatYearlyDate(_yearlyDate), () async {
+                    final pickedYear = await _pickYear(_yearlyDate.year);
+                    if (pickedYear != null) {
+                      setState(() => _yearlyDate = DateTime(pickedYear, 1, 1));
+                    }
+                  }),
+                  leftFuture: _loadRangeAnalytics(selYearStart, selYearEnd),
+                  rightTitle: 'Active Year',
+                  rightFuture: _loadRangeAnalytics(thisYearStart, thisYearEnd),
+                  leftChartBuilder: (data) =>
+                      _buildBarChart(selYearStart, selYearEnd, 12, _formatYearlyDate(_yearlyDate), data),
+                  rightChartBuilder: (data) =>
+                      _buildBarChart(thisYearStart, thisYearEnd, 12, _formatYearlyDate(today), data),
+                  trendBuilder: _buildTrendBadge,
+                ),
                 const SizedBox(height: 100),
               ],
             ),

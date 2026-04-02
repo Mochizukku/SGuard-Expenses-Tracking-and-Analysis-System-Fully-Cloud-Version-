@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../data/services/app_settings_controller.dart';
 import 'analysis/analysispage.dart';
 import 'home/homepage.dart';
 import 'profile/profilepage.dart';
@@ -8,14 +9,16 @@ import 'recordbook/recordbookpage.dart';
 import 'signin_or_signup/loginpage.dart';
 
 class AppShell extends StatefulWidget {
-  const AppShell({super.key});
+  const AppShell({super.key, this.initialIndex});
+
+  final int? initialIndex;
 
   @override
   State<AppShell> createState() => _AppShellState();
 }
 
 class _AppShellState extends State<AppShell> {
-  static const _navTitles = ['Home', 'Record Book', 'Analysis'];
+  static const _navTitles = ['Home', 'Record Book', 'Analysis', 'Profile'];
   static const _bottomIcons = [
     Icons.home,
     Icons.add,
@@ -23,8 +26,8 @@ class _AppShellState extends State<AppShell> {
     Icons.person,
   ];
 
-  final PageController _pageController = PageController();
-  int _selectedIndex = 0;
+  late final PageController _pageController;
+  late int _selectedIndex;
 
   final List<Widget> _pageBodies = [
     HomePageContent(),
@@ -32,6 +35,16 @@ class _AppShellState extends State<AppShell> {
     AnalysisPage(),
     ProfilePage(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    final defaultIndex =
+        AppSettingsController.instance.settings.value.personalization.startPageIndex;
+    _selectedIndex =
+        (widget.initialIndex ?? defaultIndex).clamp(0, _pageBodies.length - 1) as int;
+    _pageController = PageController(initialPage: _selectedIndex);
+  }
 
   Future<void> _refreshPage() async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
@@ -53,7 +66,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   PreferredSizeWidget _buildTopNavigation() {
-    final titleIndex = _selectedIndex.clamp(0, _navTitles.length - 1);
+    final titleIndex = _selectedIndex.clamp(0, _navTitles.length - 1) as int;
     return PreferredSize(
       preferredSize: const Size.fromHeight(72),
       child: SafeArea(
@@ -240,6 +253,12 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<bool> _onWillPop() async {
+    final requireConfirm = AppSettingsController
+        .instance.settings.value.tracking.confirmResetSensitiveActions;
+    if (!requireConfirm) {
+      return true;
+    }
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(

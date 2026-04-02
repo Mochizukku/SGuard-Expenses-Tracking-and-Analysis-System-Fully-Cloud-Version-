@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../data/services/app_settings_controller.dart';
 import '../../../data/services/fastapi_gateway.dart';
 import '../../../data/services/firebase_service.dart';
 import '../../../data/services/record_book_store.dart';
@@ -177,24 +178,28 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _signOut() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sign out?'),
-        content: const Text('Are you sure you want to sign out without saving the current day to cloud?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Sign out', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
+    final requireConfirm = AppSettingsController
+        .instance.settings.value.tracking.confirmResetSensitiveActions;
+    final confirm = requireConfirm
+        ? await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Sign out?'),
+              content: const Text('Are you sure you want to sign out without saving the current day to cloud?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  child: const Text('Sign out', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            ),
+          )
+        : true;
     if (confirm != true) {
       return;
     }
@@ -280,18 +285,42 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Widget _buildProfileAvatar(AppProfileSettings settings) {
+    final avatarMap = <String, ({IconData icon, Color color})>{
+      'classic_blue': (icon: Icons.person, color: const Color(0xFF004AAD)),
+      'green_guard': (icon: Icons.shield_outlined, color: const Color(0xFF147D64)),
+      'sunrise_star': (icon: Icons.star_border, color: const Color(0xFFC05621)),
+      'violet_face': (icon: Icons.sentiment_satisfied_alt, color: const Color(0xFF6B46C1)),
+    };
+    final avatar = avatarMap[settings.avatarKey] ?? avatarMap['classic_blue']!;
+    return CircleAvatar(
+      radius: 44,
+      backgroundColor: avatar.color.withValues(alpha: 0.12),
+      child: Icon(avatar.icon, size: 44, color: avatar.color),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<int>(
-      valueListenable: RecordBookData.revision,
-      builder: (context, _, __) {
+    return ValueListenableBuilder<AppSettingsData>(
+      valueListenable: AppSettingsController.instance.settings,
+      builder: (context, __, ___) {
+        return ValueListenableBuilder<int>(
+          valueListenable: RecordBookData.revision,
+          builder: (context, _, ____) {
         final user = _firebase.currentUser;
-        final displayName = user?.displayName ?? 'No Name';
-        final role = 'Student';
+        final appSettings = AppSettingsController.instance.settings.value;
+        final displayName = appSettings.profile.displayName.isNotEmpty
+            ? appSettings.profile.displayName
+            : (user?.displayName ?? 'No Name');
+        final role = appSettings.profile.status;
         final totalSpent = _totalSpent();
         final dailyAverage = totalSpent / _recordedDays();
         final weeklyAverage = dailyAverage * 7;
         final monthlyAverage = dailyAverage * 30;
+        final compactCards = appSettings.personalization.compactCards;
+        final showQuickHints = appSettings.personalization.showQuickHints;
+        final showActiveDateBadge = appSettings.tracking.showActiveDateBadge;
 
         return Center(
           child: SingleChildScrollView(
@@ -316,22 +345,20 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                     child: Column(
                       children: [
-                        CircleAvatar(
-                          radius: 44,
-                          backgroundColor: Colors.blue.shade50,
-                          child: const Icon(Icons.person, size: 50, color: Colors.blue),
-                        ),
+                        _buildProfileAvatar(appSettings.profile),
                         const SizedBox(height: 12),
                         Text(
                           displayName,
                           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                         Text(role, style: const TextStyle(color: Colors.black54)),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Active record: ${RecordBookStore.dateKeyFromDate(RecordBookData.activeDate)}',
-                          style: const TextStyle(color: Colors.black54),
-                        ),
+                        if (showActiveDateBadge) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'Active record: ${RecordBookStore.dateKeyFromDate(RecordBookData.activeDate)}',
+                            style: const TextStyle(color: Colors.black54),
+                          ),
+                        ],
                         const SizedBox(height: 20),
                         LayoutBuilder(
                           builder: (context, constraints) {
@@ -352,13 +379,13 @@ class _ProfilePageState extends State<ProfilePage> {
                               );
                             }
 
-                            return GridView.count(
+                              return GridView.count(
                               crossAxisCount: 2,
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
                               mainAxisSpacing: 12,
                               crossAxisSpacing: 12,
-                              childAspectRatio: 1.2,
+                              childAspectRatio: compactCards ? 1.45 : 1.2,
                               children: cards,
                             );
                           },
@@ -367,7 +394,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   ),
                   const SizedBox(height: 26),
-                  if (_profileSummary != null)
+                  if (_profileSummary != null && showQuickHints)
                     Text(
                       'Summary from FastAPI: ${_profileSummary!['summary'] ?? 'No data yet'}',
                       style: const TextStyle(fontSize: 14, color: Colors.black87),
@@ -417,6 +444,8 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ),
           ),
+        );
+          },
         );
       },
     );

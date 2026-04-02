@@ -35,7 +35,7 @@ class _RecordExportPageState extends State<RecordExportPage> {
   Future<void> _loadDates() async {
     setState(() => _isLoading = true);
     try {
-      final keys = await (widget.dateKeysLoader?.call() ?? RecordBookStore.listCloudDateKeys());
+      final keys = await (widget.dateKeysLoader?.call() ?? RecordBookStore.listHistoryDateKeys());
       String? selected = widget.initialDateKey;
       if (selected == null && keys.isNotEmpty) {
         selected = keys.first;
@@ -43,7 +43,7 @@ class _RecordExportPageState extends State<RecordExportPage> {
 
       DailyRecordSnapshot? snapshot;
       if (selected != null) {
-        snapshot = await (widget.snapshotLoader?.call(selected) ?? RecordBookStore.fetchCloudSnapshotByDateKey(selected));
+        snapshot = await (widget.snapshotLoader?.call(selected) ?? RecordBookStore.fetchHistorySnapshotByDateKey(selected));
       }
 
       if (!mounted) {
@@ -76,7 +76,7 @@ class _RecordExportPageState extends State<RecordExportPage> {
     });
 
     try {
-      final snapshot = await (widget.snapshotLoader?.call(dateKey) ?? RecordBookStore.fetchCloudSnapshotByDateKey(dateKey));
+      final snapshot = await (widget.snapshotLoader?.call(dateKey) ?? RecordBookStore.fetchHistorySnapshotByDateKey(dateKey));
       if (!mounted) {
         return;
       }
