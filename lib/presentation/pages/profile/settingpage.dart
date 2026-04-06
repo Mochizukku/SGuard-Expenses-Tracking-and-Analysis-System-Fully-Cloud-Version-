@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../data/services/app_settings_controller.dart';
@@ -132,6 +135,13 @@ class SettingPage extends StatelessWidget {
                       ),
                       _buildRow(
                         context,
+                        'Record Template',
+                        Icons.library_books_outlined,
+                        'Set the category template that will apply on the next new day.',
+                        () => _open(context, const SettingsRecordTemplatePage()),
+                      ),
+                      _buildRow(
+                        context,
                         'Personalization',
                         Icons.palette_outlined,
                         'Theme, text size, accent color, and other preferences.',
@@ -184,9 +194,21 @@ class SettingsProfilePage extends StatefulWidget {
 class _SettingsProfilePageState extends State<SettingsProfilePage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
-  late final TextEditingController _statusController;
+  late final TextEditingController _customStatusController;
+  final _picker = ImagePicker();
   late String _avatarKey;
+  late String _statusPreset;
+  String _avatarImagePath = '';
   bool _isSaving = false;
+  bool _isPickingImage = false;
+
+  static const _statusOptions = [
+    'Student',
+    'Employee',
+    'Businessman',
+    'Teacher',
+    'Custom',
+  ];
 
   static const _avatarChoices = <String, ({IconData icon, Color color, String label})>{
     'classic_blue': (icon: Icons.person, color: Color(0xFF004AAD), label: 'Classic Blue'),
@@ -202,15 +224,43 @@ class _SettingsProfilePageState extends State<SettingsProfilePage> {
     final user = FirebaseAuth.instance.currentUser;
     _nameController =
         TextEditingController(text: settings.displayName.isNotEmpty ? settings.displayName : (user?.displayName ?? ''));
-    _statusController = TextEditingController(text: settings.status);
+    _customStatusController = TextEditingController(text: settings.customStatus);
     _avatarKey = settings.avatarKey;
+    _statusPreset = settings.statusPreset;
+    _avatarImagePath = settings.avatarImagePath;
   }
 
   @override
   void dispose() {
     _nameController.dispose();
-    _statusController.dispose();
+    _customStatusController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickProfileImage(ImageSource source) async {
+    setState(() => _isPickingImage = true);
+    try {
+      final picked = await _picker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1200,
+      );
+      if (picked == null || !mounted) {
+        return;
+      }
+      setState(() => _avatarImagePath = picked.path);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to pick image: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isPickingImage = false);
+      }
+    }
   }
 
   Future<void> _saveProfile() async {
@@ -229,8 +279,10 @@ class _SettingsProfilePageState extends State<SettingsProfilePage> {
       await AppSettingsController.instance.updateProfile(
         current.copyWith(
           displayName: _nameController.text.trim(),
-          status: _statusController.text.trim().isEmpty ? 'Student' : _statusController.text.trim(),
+          statusPreset: _statusPreset,
+          customStatus: _customStatusController.text.trim(),
           avatarKey: _avatarKey,
+          avatarImagePath: _avatarImagePath,
         ),
       );
 
@@ -255,9 +307,12 @@ class _SettingsProfilePageState extends State<SettingsProfilePage> {
   }
 
   Widget _buildAvatarChoice(String key, ({IconData icon, Color color, String label}) avatar) {
-    final isSelected = _avatarKey == key;
+    final isSelected = _avatarKey == key && _avatarImagePath.trim().isEmpty;
     return InkWell(
-      onTap: () => setState(() => _avatarKey = key),
+      onTap: () => setState(() {
+        _avatarKey = key;
+        _avatarImagePath = '';
+      }),
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(12),
@@ -287,6 +342,23 @@ class _SettingsProfilePageState extends State<SettingsProfilePage> {
     );
   }
 
+  Widget _buildAvatarPreview() {
+    final imagePath = _avatarImagePath.trim();
+    if (imagePath.isNotEmpty && File(imagePath).existsSync()) {
+      return CircleAvatar(
+        radius: 36,
+        backgroundImage: FileImage(File(imagePath)),
+      );
+    }
+
+    final avatar = _avatarChoices[_avatarKey] ?? _avatarChoices['classic_blue']!;
+    return CircleAvatar(
+      radius: 36,
+      backgroundColor: avatar.color.withValues(alpha: 0.15),
+      child: Icon(avatar.icon, color: avatar.color, size: 36),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return _SettingsScaffold(
@@ -300,6 +372,40 @@ class _SettingsProfilePageState extends State<SettingsProfilePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('Profile Image', style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    _buildAvatarPreview(),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.icon(
+                              onPressed: _isPickingImage
+                                  ? null
+                                  : () => _pickProfileImage(ImageSource.gallery),
+                              icon: const Icon(Icons.photo_library_outlined),
+                              label: const Text('Choose from Gallery'),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _isPickingImage
+                                  ? null
+                                  : () => _pickProfileImage(ImageSource.camera),
+                              icon: const Icon(Icons.photo_camera_outlined),
+                              label: const Text('Take Photo'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 12),
                 GridView.count(
                   crossAxisCount: 2,
@@ -324,18 +430,49 @@ class _SettingsProfilePageState extends State<SettingsProfilePage> {
                       value == null || value.trim().isEmpty ? 'Name is required' : null,
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
-                  controller: _statusController,
+                DropdownButtonFormField<String>(
+                  value: _statusPreset,
                   decoration: const InputDecoration(
                     labelText: 'Status',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.school_outlined),
                   ),
+                  items: _statusOptions
+                      .map((status) => DropdownMenuItem<String>(
+                            value: status,
+                            child: Text(status),
+                          ))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() => _statusPreset = value);
+                    }
+                  },
                 ),
+                if (_statusPreset == 'Custom') ...[
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _customStatusController,
+                    decoration: const InputDecoration(
+                      labelText: 'Custom Status',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.edit_note_outlined),
+                    ),
+                    validator: (value) {
+                      if (_statusPreset == 'Custom' &&
+                          (value == null || value.trim().isEmpty)) {
+                        return 'Enter a custom status';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
                 const SizedBox(height: 8),
-                const Text(
-                  'Default status is Student. You can replace it with your preferred label.',
-                  style: TextStyle(color: Colors.black54),
+                Text(
+                  _statusPreset == 'Custom'
+                      ? 'Your typed custom status will appear on the profile page.'
+                      : 'Selected status will appear on the profile page.',
+                  style: const TextStyle(color: Color(0xFF4A6078), fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 20),
                 SizedBox(
@@ -463,64 +600,301 @@ class _SettingsAccountPageState extends State<SettingsAccountPage> {
     }
   }
 
+  Widget _buildAccountHero(User? user) {
+    final email = user?.email ?? 'Not signed in';
+    final firstLetter = email.isNotEmpty ? email[0].toUpperCase() : 'S';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF004AAD), Color(0xFF2B74D9)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 28,
+            backgroundColor: Colors.white.withValues(alpha: 0.18),
+            child: Text(
+              firstLetter,
+              style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Account Security',
+                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  email,
+                  style: const TextStyle(color: Color(0xFFE8F0FF), fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionCard({
+    required String title,
+    required String subtitle,
+    required Widget child,
+  }) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFD8E4F3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Color(0xFF16304B)),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: const TextStyle(color: Color(0xFF4A6078), fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 16),
+          child,
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     return _SettingsScaffold(
       title: 'Account',
+      child: Column(
+        children: [
+          _buildAccountHero(user),
+          _buildSectionCard(
+            title: 'Password',
+            subtitle: 'Update your password with your current credentials.',
+            child: Column(
+              children: [
+                TextField(
+                  controller: _currentPasswordController,
+                  decoration: const InputDecoration(
+                    labelText: 'Current Password',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.lock_clock_outlined),
+                  ),
+                  obscureText: true,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _newPasswordController,
+                  decoration: const InputDecoration(
+                    labelText: 'New Password',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.lock_outline),
+                  ),
+                  obscureText: true,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _confirmPasswordController,
+                  decoration: const InputDecoration(
+                    labelText: 'Confirm New Password',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.verified_user_outlined),
+                  ),
+                  obscureText: true,
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _isUpdating ? null : _changePassword,
+                    icon: const Icon(Icons.password_outlined),
+                    label: Text(_isUpdating ? 'Updating...' : 'Change Password'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _buildSectionCard(
+            title: 'Recovery',
+            subtitle: 'Send a reset email in case you need to recover access later.',
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _isSendingReset ? null : _sendResetEmail,
+                icon: const Icon(Icons.email_outlined),
+                label: Text(_isSendingReset ? 'Sending...' : 'Send Reset Email'),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SettingsRecordTemplatePage extends StatefulWidget {
+  const SettingsRecordTemplatePage({super.key});
+
+  @override
+  State<SettingsRecordTemplatePage> createState() =>
+      _SettingsRecordTemplatePageState();
+}
+
+class _SettingsRecordTemplatePageState extends State<SettingsRecordTemplatePage> {
+  late List<String> _categoryNames;
+
+  @override
+  void initState() {
+    super.initState();
+    _categoryNames = List<String>.from(
+      AppSettingsController.instance.settings.value.recordTemplate.categoryNames,
+    );
+  }
+
+  Future<void> _persist() async {
+    final cleaned = _categoryNames
+        .map((name) => name.trim())
+        .where((name) => name.isNotEmpty)
+        .toSet()
+        .toList();
+    if (cleaned.isEmpty) {
+      cleaned.addAll(['Billing', 'Food', 'Others']);
+    }
+    setState(() => _categoryNames = cleaned);
+    await AppSettingsController.instance.updateRecordTemplate(
+      RecordBookTemplateSettings(categoryNames: cleaned),
+    );
+  }
+
+  Future<void> _showCategoryDialog({int? index}) async {
+    final controller = TextEditingController(
+      text: index != null ? _categoryNames[index] : '',
+    );
+    final isEditing = index != null;
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(isEditing ? 'Edit Template Category' : 'Add Template Category'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'Category name',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final value = controller.text.trim();
+                if (value.isEmpty) {
+                  return;
+                }
+                setState(() {
+                  if (isEditing) {
+                    _categoryNames[index] = value;
+                  } else {
+                    _categoryNames.add(value);
+                  }
+                });
+                await _persist();
+                if (context.mounted) {
+                  Navigator.of(context).pop();
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _SettingsScaffold(
+      title: 'Record Template',
       child: Card(
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Email: ${user?.email ?? 'Not signed in'}'),
-              const SizedBox(height: 20),
-              TextField(
-                controller: _currentPasswordController,
-                decoration: const InputDecoration(
-                  labelText: 'Current Password',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock_clock_outlined),
-                ),
-                obscureText: true,
+              const Text(
+                'Template Categories',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _newPasswordController,
-                decoration: const InputDecoration(
-                  labelText: 'New Password',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock_outline),
-                ),
-                obscureText: true,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _confirmPasswordController,
-                decoration: const InputDecoration(
-                  labelText: 'Confirm New Password',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.verified_user_outlined),
-                ),
-                obscureText: true,
+              const SizedBox(height: 8),
+              const Text(
+                'Changes here do not affect the current day. They apply the next time a new day is created and stay in effect until you change them again.',
+                style: TextStyle(color: Color(0xFF4A6078), fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 16),
+              ..._categoryNames.asMap().entries.map((entry) {
+                final index = entry.key;
+                final name = entry.value;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7FAFF),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFD6E2F4)),
+                  ),
+                  child: ListTile(
+                    title: Text(
+                      name,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    trailing: Wrap(
+                      spacing: 4,
+                      children: [
+                        IconButton(
+                          onPressed: () => _showCategoryDialog(index: index),
+                          icon: const Icon(Icons.edit_outlined),
+                        ),
+                        IconButton(
+                          onPressed: () async {
+                            setState(() => _categoryNames.removeAt(index));
+                            await _persist();
+                          },
+                          icon: const Icon(Icons.delete_outline),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: _isUpdating ? null : _changePassword,
-                  icon: const Icon(Icons.password_outlined),
-                  label: Text(_isUpdating ? 'Updating...' : 'Change Password'),
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _isSendingReset ? null : _sendResetEmail,
-                  icon: const Icon(Icons.email_outlined),
-                  label: Text(_isSendingReset ? 'Sending...' : 'Send Reset Email'),
+                  onPressed: () => _showCategoryDialog(),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Template Category'),
                 ),
               ),
             ],

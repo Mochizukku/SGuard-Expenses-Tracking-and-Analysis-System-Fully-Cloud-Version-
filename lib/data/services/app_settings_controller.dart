@@ -6,39 +6,107 @@ import 'package:shared_preferences/shared_preferences.dart';
 class AppProfileSettings {
   const AppProfileSettings({
     required this.displayName,
-    required this.status,
+    required this.statusPreset,
+    required this.customStatus,
     required this.avatarKey,
+    required this.avatarImagePath,
   });
 
   final String displayName;
-  final String status;
+  final String statusPreset;
+  final String customStatus;
   final String avatarKey;
+  final String avatarImagePath;
+
+  String get resolvedStatus {
+    if (statusPreset == 'Custom') {
+      final trimmed = customStatus.trim();
+      return trimmed.isEmpty ? 'Student' : trimmed;
+    }
+    return statusPreset;
+  }
 
   AppProfileSettings copyWith({
     String? displayName,
-    String? status,
+    String? statusPreset,
+    String? customStatus,
     String? avatarKey,
+    String? avatarImagePath,
   }) {
     return AppProfileSettings(
       displayName: displayName ?? this.displayName,
-      status: status ?? this.status,
+      statusPreset: statusPreset ?? this.statusPreset,
+      customStatus: customStatus ?? this.customStatus,
       avatarKey: avatarKey ?? this.avatarKey,
+      avatarImagePath: avatarImagePath ?? this.avatarImagePath,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'displayName': displayName,
-      'status': status,
+      'statusPreset': statusPreset,
+      'customStatus': customStatus,
+      'status': resolvedStatus,
       'avatarKey': avatarKey,
+      'avatarImagePath': avatarImagePath,
     };
   }
 
   factory AppProfileSettings.fromJson(Map<String, dynamic> json) {
+    final legacyStatus = json['status'] as String? ?? 'Student';
     return AppProfileSettings(
       displayName: json['displayName'] as String? ?? '',
-      status: json['status'] as String? ?? 'Student',
+      statusPreset: json['statusPreset'] as String? ??
+          (legacyStatus == 'Student' ||
+                  legacyStatus == 'Employee' ||
+                  legacyStatus == 'Businessman' ||
+                  legacyStatus == 'Teacher'
+              ? legacyStatus
+              : 'Custom'),
+      customStatus: json['customStatus'] as String? ??
+          ((legacyStatus == 'Student' ||
+                  legacyStatus == 'Employee' ||
+                  legacyStatus == 'Businessman' ||
+                  legacyStatus == 'Teacher')
+              ? ''
+              : legacyStatus),
       avatarKey: json['avatarKey'] as String? ?? 'classic_blue',
+      avatarImagePath: json['avatarImagePath'] as String? ?? '',
+    );
+  }
+}
+
+class RecordBookTemplateSettings {
+  const RecordBookTemplateSettings({
+    required this.categoryNames,
+  });
+
+  final List<String> categoryNames;
+
+  RecordBookTemplateSettings copyWith({
+    List<String>? categoryNames,
+  }) {
+    return RecordBookTemplateSettings(
+      categoryNames: categoryNames ?? this.categoryNames,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'categoryNames': categoryNames,
+    };
+  }
+
+  factory RecordBookTemplateSettings.fromJson(Map<String, dynamic> json) {
+    final names = (json['categoryNames'] as List<dynamic>? ?? const [])
+        .map((entry) => entry.toString().trim())
+        .where((entry) => entry.isNotEmpty)
+        .toList();
+    return RecordBookTemplateSettings(
+      categoryNames: names.isEmpty
+          ? const ['Billing', 'Food', 'Others']
+          : names,
     );
   }
 }
@@ -177,21 +245,25 @@ class AppSettingsData {
     required this.profile,
     required this.tracking,
     required this.personalization,
+    required this.recordTemplate,
   });
 
   final AppProfileSettings profile;
   final TrackingSettings tracking;
   final PersonalizationSettings personalization;
+  final RecordBookTemplateSettings recordTemplate;
 
   AppSettingsData copyWith({
     AppProfileSettings? profile,
     TrackingSettings? tracking,
     PersonalizationSettings? personalization,
+    RecordBookTemplateSettings? recordTemplate,
   }) {
     return AppSettingsData(
       profile: profile ?? this.profile,
       tracking: tracking ?? this.tracking,
       personalization: personalization ?? this.personalization,
+      recordTemplate: recordTemplate ?? this.recordTemplate,
     );
   }
 
@@ -200,6 +272,7 @@ class AppSettingsData {
       'profile': profile.toJson(),
       'tracking': tracking.toJson(),
       'personalization': personalization.toJson(),
+      'recordTemplate': recordTemplate.toJson(),
     };
   }
 
@@ -214,6 +287,9 @@ class AppSettingsData {
       personalization: PersonalizationSettings.fromJson(
         Map<String, dynamic>.from(json['personalization'] as Map? ?? const {}),
       ),
+      recordTemplate: RecordBookTemplateSettings.fromJson(
+        Map<String, dynamic>.from(json['recordTemplate'] as Map? ?? const {}),
+      ),
     );
   }
 
@@ -221,8 +297,10 @@ class AppSettingsData {
     return const AppSettingsData(
       profile: AppProfileSettings(
         displayName: '',
-        status: 'Student',
+        statusPreset: 'Student',
+        customStatus: '',
         avatarKey: 'classic_blue',
+        avatarImagePath: '',
       ),
       tracking: TrackingSettings(
         autoSaveHistoryCache: true,
@@ -241,6 +319,9 @@ class AppSettingsData {
         startPageIndex: 0,
         accentColorKey: 'blue',
       ),
+      recordTemplate: RecordBookTemplateSettings(
+        categoryNames: ['Billing', 'Food', 'Others'],
+      ),
     );
   }
 }
@@ -248,7 +329,8 @@ class AppSettingsData {
 class AppSettingsController {
   AppSettingsController._();
 
-  static const _storageKey = 'sguard_app_settings_v1';
+  static const _storageKey = 'sguard_app_settings_v2';
+  static const _legacyStorageKey = 'sguard_app_settings_v1';
   static final AppSettingsController instance = AppSettingsController._();
 
   final ValueNotifier<AppSettingsData> settings =
@@ -261,7 +343,7 @@ class AppSettingsController {
       return;
     }
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_storageKey);
+    final raw = prefs.getString(_storageKey) ?? prefs.getString(_legacyStorageKey);
     if (raw != null && raw.isNotEmpty) {
       try {
         settings.value = AppSettingsData.fromJson(
@@ -286,6 +368,12 @@ class AppSettingsController {
     PersonalizationSettings personalization,
   ) async {
     await _update(settings.value.copyWith(personalization: personalization));
+  }
+
+  Future<void> updateRecordTemplate(
+    RecordBookTemplateSettings recordTemplate,
+  ) async {
+    await _update(settings.value.copyWith(recordTemplate: recordTemplate));
   }
 
   Future<void> _update(AppSettingsData next) async {

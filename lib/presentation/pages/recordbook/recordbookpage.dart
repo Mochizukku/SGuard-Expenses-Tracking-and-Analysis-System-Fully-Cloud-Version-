@@ -344,7 +344,7 @@ class _RecordBookPageState extends State<RecordBookPage> {
             children: [
               const Text(
                 'My Balance',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF16304B)),
               ),
               const SizedBox(height: 8),
               Row(
@@ -355,12 +355,12 @@ class _RecordBookPageState extends State<RecordBookPage> {
                     children: [
                       Text(
                         '\$${RecordBookData.balance.toStringAsFixed(2)}',
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF16304B)),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         'For ${_formatLongDate(RecordBookData.activeDate)}',
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF4A6078), fontWeight: FontWeight.w600),
                       ),
                     ],
                   ),
@@ -373,7 +373,7 @@ class _RecordBookPageState extends State<RecordBookPage> {
               const SizedBox(height: 24),
               const Text(
                 'Spending List',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF16304B)),
               ),
               const SizedBox(height: 12),
               ..._sortedCategories.map((category) => _buildCategory(category, primaryBlue)),
@@ -466,7 +466,7 @@ class _RecordBookPageState extends State<RecordBookPage> {
               children: [
                 Text(
                   category.name,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF16304B)),
                 ),
                 Row(
                   mainAxisSize: MainAxisSize.min,
@@ -529,9 +529,17 @@ class _RecordBookPageState extends State<RecordBookPage> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Expanded(child: Text(item.name, style: const TextStyle(fontSize: 12))),
+                      Expanded(
+                        child: Text(
+                          item.name,
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF324A64)),
+                        ),
+                      ),
                       const SizedBox(width: 12),
-                      Text('\$ ${item.amount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 12)),
+                      Text(
+                        '\$ ${item.amount.toStringAsFixed(2)}',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF324A64)),
+                      ),
                     ],
                   ),
                 ),

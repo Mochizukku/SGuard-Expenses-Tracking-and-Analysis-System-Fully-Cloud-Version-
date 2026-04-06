@@ -1,7 +1,7 @@
 import 'package:fully_cloud_sguard/data/dataresources/firestore_datasource.dart';
 import 'package:fully_cloud_sguard/data/models/expense_model.dart';
-import 'package:fully_cloud_sguard/domain/entities/expense.dart';
-import 'package:fully_cloud_sguard/domain/repositories/expense_repository.dart';
+import 'package:fully_cloud_sguard/presentation/pages/analysis/domain/entities/expense.dart';
+import 'package:fully_cloud_sguard/presentation/pages/analysis/domain/repositories/expense_repository.dart';
 
 class ExpenseRepositoryImpl implements ExpenseRepository {
   final FirestoreDatasource _datasource;

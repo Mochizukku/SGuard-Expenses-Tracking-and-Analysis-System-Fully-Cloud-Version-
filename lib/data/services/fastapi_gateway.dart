@@ -222,6 +222,9 @@ class FastApiGateway {
     }
 
     final json = jsonDecode(response.body) as Map<String, dynamic>;
+    if (json['success'] != true || json['data'] is! Map<String, dynamic>) {
+      throw Exception('Profile summary response was incomplete.');
+    }
     return json['data'] as Map<String, dynamic>;
   }
 

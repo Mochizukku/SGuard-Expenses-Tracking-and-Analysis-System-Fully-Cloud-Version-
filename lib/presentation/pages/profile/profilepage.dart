@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -10,6 +12,20 @@ import '../signin_or_signup/loginpage.dart';
 import '../recordbook/recordbookpage.dart';
 import 'managerecordpage.dart';
 import 'settingpage.dart';
+
+class _HistoryMetrics {
+  const _HistoryMetrics({
+    required this.totalSpent,
+    required this.dayCount,
+    required this.weekCount,
+    required this.monthCount,
+  });
+
+  final double totalSpent;
+  final int dayCount;
+  final int weekCount;
+  final int monthCount;
+}
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -81,14 +97,74 @@ class _ProfilePageState extends State<ProfilePage> {
     return RecordBookData.categories.fold(0.0, (sum, category) => sum + category.total);
   }
 
-  int _recordedDays() {
+  Set<String> _recordedDayKeys() {
     final keys = <String>{};
     for (final category in RecordBookData.categories) {
       for (final item in category.items) {
         keys.add(RecordBookStore.dateKeyFromDate(item.date));
       }
     }
-    return keys.isEmpty ? 1 : keys.length;
+    return keys;
+  }
+
+  int _recordedWeeks() {
+    final keys = <String>{};
+    for (final category in RecordBookData.categories) {
+      for (final item in category.items) {
+        final date = item.date;
+        final weekStart = date.subtract(Duration(days: date.weekday % 7));
+        keys.add(RecordBookStore.dateKeyFromDate(weekStart));
+      }
+    }
+    return keys.length;
+  }
+
+  int _recordedMonths() {
+    final keys = <String>{};
+    for (final category in RecordBookData.categories) {
+      for (final item in category.items) {
+        keys.add('${item.date.year}-${item.date.month.toString().padLeft(2, '0')}');
+      }
+    }
+    return keys.length;
+  }
+
+  Future<_HistoryMetrics> _loadHistoryMetrics() async {
+    final keys = await RecordBookStore.listHistoryDateKeys();
+    final dayKeys = <String>{};
+    final weekKeys = <String>{};
+    final monthKeys = <String>{};
+    var totalSpent = 0.0;
+
+    for (final key in keys) {
+      final snapshot = await RecordBookStore.fetchHistorySnapshotByDateKey(key);
+      if (snapshot == null) {
+        continue;
+      }
+
+      var snapshotTotal = 0.0;
+      for (final category in snapshot.categories) {
+        snapshotTotal += category.total;
+      }
+
+      if (snapshotTotal <= 0) {
+        continue;
+      }
+
+      totalSpent += snapshotTotal;
+      dayKeys.add(snapshot.dateKey);
+      final date = RecordBookStore.dateFromKey(snapshot.dateKey);
+      final weekStart = date.subtract(Duration(days: date.weekday % 7));
+      weekKeys.add(RecordBookStore.dateKeyFromDate(weekStart));
+      monthKeys.add('${date.year}-${date.month.toString().padLeft(2, '0')}');
+    }
+
+    return _HistoryMetrics(
+      totalSpent: totalSpent,
+      dayCount: dayKeys.length,
+      weekCount: weekKeys.length,
+      monthCount: monthKeys.length,
+    );
   }
 
   Future<void> _saveToCloud() async {
@@ -237,7 +313,7 @@ class _ProfilePageState extends State<ProfilePage> {
         children: [
           Text(
             title,
-            style: const TextStyle(fontSize: 12, color: Colors.white70),
+            style: const TextStyle(fontSize: 12, color: Color(0xFFE7F0FF), fontWeight: FontWeight.w700),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
@@ -275,7 +351,7 @@ class _ProfilePageState extends State<ProfilePage> {
             Expanded(
               child: Text(
                 label,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF16304B)),
               ),
             ),
             const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.black38),
@@ -286,6 +362,16 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildProfileAvatar(AppProfileSettings settings) {
+    if (settings.avatarImagePath.trim().isNotEmpty) {
+      final imageFile = File(settings.avatarImagePath);
+      if (imageFile.existsSync()) {
+        return CircleAvatar(
+          radius: 44,
+          backgroundColor: const Color(0xFFE8F0FF),
+          backgroundImage: FileImage(imageFile),
+        );
+      }
+    }
     final avatarMap = <String, ({IconData icon, Color color})>{
       'classic_blue': (icon: Icons.person, color: const Color(0xFF004AAD)),
       'green_guard': (icon: Icons.shield_outlined, color: const Color(0xFF147D64)),
@@ -313,22 +399,35 @@ class _ProfilePageState extends State<ProfilePage> {
         final displayName = appSettings.profile.displayName.isNotEmpty
             ? appSettings.profile.displayName
             : (user?.displayName ?? 'No Name');
-        final role = appSettings.profile.status;
-        final totalSpent = _totalSpent();
-        final dailyAverage = totalSpent / _recordedDays();
-        final weeklyAverage = dailyAverage * 7;
-        final monthlyAverage = dailyAverage * 30;
+        final role = appSettings.profile.resolvedStatus;
         final compactCards = appSettings.personalization.compactCards;
         final showQuickHints = appSettings.personalization.showQuickHints;
         final showActiveDateBadge = appSettings.tracking.showActiveDateBadge;
 
-        return Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
-                children: [
+        return FutureBuilder<_HistoryMetrics>(
+          future: _loadHistoryMetrics(),
+          builder: (context, historySnapshot) {
+            final metrics = historySnapshot.data ??
+                _HistoryMetrics(
+                  totalSpent: _totalSpent(),
+                  dayCount: _recordedDayKeys().length,
+                  weekCount: _recordedWeeks(),
+                  monthCount: _recordedMonths(),
+                );
+            final dailyAverage =
+                metrics.dayCount == 0 ? 0.0 : metrics.totalSpent / metrics.dayCount;
+            final weeklyAverage =
+                metrics.weekCount == 0 ? 0.0 : metrics.totalSpent / metrics.weekCount;
+            final monthlyAverage =
+                metrics.monthCount == 0 ? 0.0 : metrics.totalSpent / metrics.monthCount;
+
+            return Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Column(
+                    children: [
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
@@ -349,14 +448,17 @@ class _ProfilePageState extends State<ProfilePage> {
                         const SizedBox(height: 12),
                         Text(
                           displayName,
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF16304B)),
                         ),
-                        Text(role, style: const TextStyle(color: Colors.black54)),
+                        Text(
+                          role,
+                          style: const TextStyle(color: Color(0xFF4A6078), fontWeight: FontWeight.w600),
+                        ),
                         if (showActiveDateBadge) ...[
                           const SizedBox(height: 8),
                           Text(
                             'Active record: ${RecordBookStore.dateKeyFromDate(RecordBookData.activeDate)}',
-                            style: const TextStyle(color: Colors.black54),
+                            style: const TextStyle(color: Color(0xFF4A6078), fontWeight: FontWeight.w600),
                           ),
                         ],
                         const SizedBox(height: 20),
@@ -393,19 +495,50 @@ class _ProfilePageState extends State<ProfilePage> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 26),
-                  if (_profileSummary != null && showQuickHints)
-                    Text(
-                      'Summary from FastAPI: ${_profileSummary!['summary'] ?? 'No data yet'}',
-                      style: const TextStyle(fontSize: 14, color: Colors.black87),
-                    )
-                  else if (_error != null)
-                    Text(
-                      _error!,
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                  const SizedBox(height: 16),
-                  _buildActionButton(
+                      const SizedBox(height: 26),
+                      if (_profileSummary != null && showQuickHints)
+                        Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF3F7FD),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFD3E1F6)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Cloud Summary',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF16304B)),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Total spent: \$${((_profileSummary!['totalSpent'] as num?) ?? 0).toStringAsFixed(2)}',
+                            style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF324A64)),
+                          ),
+                          Text(
+                            'Remaining balance: \$${((_profileSummary!['remainingBalance'] as num?) ?? 0).toStringAsFixed(2)}',
+                            style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF324A64)),
+                          ),
+                          Text(
+                            'Average daily spending: \$${((_profileSummary!['averageDailySpending'] as num?) ?? 0).toStringAsFixed(2)}',
+                            style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF324A64)),
+                          ),
+                          Text(
+                            'Average per expense: \$${((_profileSummary!['averagePerExpense'] as num?) ?? 0).toStringAsFixed(2)}',
+                            style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF324A64)),
+                          ),
+                        ],
+                      ),
+                        )
+                      else if (_error != null)
+                        Text(
+                          _error!,
+                          style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+                        ),
+                      const SizedBox(height: 16),
+                      _buildActionButton(
                     _isExporting ? 'Exporting PDF...' : 'Export Reports',
                     Icons.picture_as_pdf,
                     _isExporting ? () {} : _exportReports,
@@ -431,7 +564,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       MaterialPageRoute(builder: (_) => const SettingPage()),
                     ),
                   ),
-                  _buildActionButton(
+                      _buildActionButton(
                     user == null ? 'Log in' : 'Sign out',
                     user == null ? Icons.login : Icons.logout,
                     user == null
@@ -439,14 +572,16 @@ class _ProfilePageState extends State<ProfilePage> {
                               MaterialPageRoute(builder: (_) => const LoginPage()),
                             )
                         : _signOut,
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
-        );
+            );
           },
         );
+      },
+    );
       },
     );
   }

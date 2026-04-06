@@ -266,37 +266,16 @@ class _HomePageContentState extends State<HomePageContent> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      const Text(
-                        'Home',
-                        style: TextStyle(fontSize: 34, fontWeight: FontWeight.w700),
-                      ),
-                      const Spacer(),
-                      Icon(
-                        Icons.search,
-                        size: 30,
-                        color: Colors.black.withValues(alpha: 0.85),
-                      ),
-                      const SizedBox(width: 12),
-                      Icon(
-                        Icons.more_vert,
-                        size: 30,
-                        color: Colors.black.withValues(alpha: 0.85),
-                      ),
-                    ],
-                  ),
-                  const Divider(height: 28),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 18),
                   const Text(
                     'Total Spending',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF16304B)),
                   ),
                   const SizedBox(height: 8),
                   if (showActiveDateBadge)
                     Text(
                       'Active day: ${activeDate.month}/${activeDate.day}/${activeDate.year}',
-                      style: const TextStyle(fontSize: 14, color: Colors.black54),
+                      style: const TextStyle(fontSize: 14, color: Color(0xFF4A6078), fontWeight: FontWeight.w600),
                     ),
                   const SizedBox(height: 14),
                   if (snapshot.connectionState == ConnectionState.waiting)
@@ -307,15 +286,15 @@ class _HomePageContentState extends State<HomePageContent> {
                   else ...[
                     Text(
                       'Current day:  ${_currency(todayTotal, showCurrencySymbol)}',
-                      style: const TextStyle(fontSize: 16),
+                      style: const TextStyle(fontSize: 16, color: Color(0xFF16304B), fontWeight: FontWeight.w600),
                     ),
                     Text(
                       'Previous day:  ${_currency(yesterdayTotal, showCurrencySymbol)}',
-                      style: const TextStyle(fontSize: 16),
+                      style: const TextStyle(fontSize: 16, color: Color(0xFF16304B), fontWeight: FontWeight.w600),
                     ),
                     Row(
                       children: [
-                        const Text('Trends: ', style: TextStyle(fontSize: 16)),
+                        const Text('Trends: ', style: TextStyle(fontSize: 16, color: Color(0xFF16304B), fontWeight: FontWeight.w700)),
                         Icon(
                           _trendIcon(todayTotal, yesterdayTotal),
                           color: _trendColor(todayTotal, yesterdayTotal),
@@ -323,18 +302,21 @@ class _HomePageContentState extends State<HomePageContent> {
                         ),
                         const SizedBox(width: 5),
                         Expanded(
-                          child: Text(trendText, style: const TextStyle(fontSize: 16)),
+                          child: Text(
+                            trendText,
+                            style: const TextStyle(fontSize: 16, color: Color(0xFF16304B), fontWeight: FontWeight.w600),
+                          ),
                         ),
                       ],
                     ),
                     Text(
                       'Remaining balance:  ${_currency(remainingBalance, showCurrencySymbol)}',
-                      style: const TextStyle(fontSize: 16),
+                      style: const TextStyle(fontSize: 16, color: Color(0xFF16304B), fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 26),
                     const Text(
                       'Previous Day Analysis:',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF16304B)),
                     ),
                     const SizedBox(height: 12),
                     _buildYesterdayChart(
@@ -349,7 +331,8 @@ class _HomePageContentState extends State<HomePageContent> {
                         insight,
                         style: const TextStyle(
                           fontSize: 14,
-                          color: Colors.black54,
+                          color: Color(0xFF4A6078),
+                          fontWeight: FontWeight.w600,
                           fontStyle: FontStyle.italic,
                         ),
                       ),

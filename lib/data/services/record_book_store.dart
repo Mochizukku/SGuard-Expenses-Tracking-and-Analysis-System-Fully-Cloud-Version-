@@ -125,11 +125,9 @@ class RecordBookStore {
   static FirebaseAuth get _auth => FirebaseAuth.instance;
 
   static List<SpendingCategory> defaultCategories() {
-    return [
-      SpendingCategory(name: 'Billing'),
-      SpendingCategory(name: 'Food'),
-      SpendingCategory(name: 'Others'),
-    ];
+    final names =
+        AppSettingsController.instance.settings.value.recordTemplate.categoryNames;
+    return names.map((name) => SpendingCategory(name: name)).toList();
   }
 
   static DateTime normalizeDate(DateTime date) =>
@@ -175,6 +173,10 @@ class RecordBookStore {
   ) {
     final template = categories.isEmpty ? defaultCategories() : categories;
     return cloneCategories(template, clearItems: true);
+  }
+
+  static List<SpendingCategory> categoriesFromStoredTemplate() {
+    return defaultCategories();
   }
 
   static DailyRecordSnapshot buildCurrentSnapshot() {
@@ -567,9 +569,9 @@ class RecordBookStore {
         );
         await cacheSnapshotLocally(snapshot);
       } else {
-        final templateCategories = RecordBookData.categories.isEmpty
-            ? defaultCategories()
-            : emptyCategoriesFromTemplate(RecordBookData.categories);
+        final templateCategories = emptyCategoriesFromTemplate(
+          categoriesFromStoredTemplate(),
+        );
         snapshot = DailyRecordSnapshot(
           dateKey: serverDateKey,
           balance: RecordBookData.balance,

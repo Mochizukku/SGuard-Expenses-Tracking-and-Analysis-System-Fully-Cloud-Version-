@@ -12,7 +12,7 @@
 # ## Code: main.py
 
 # ```python
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
@@ -47,6 +47,9 @@ class UserAccountCreate(BaseModel):
 class UserAccountUpdate(BaseModel):
     name: Optional[str] = None
     balance: Optional[float] = None
+
+class BalanceUpdate(BaseModel):
+    balance: float
 
 class ExpenseCreate(BaseModel):
     userId: str
@@ -90,14 +93,16 @@ async def get_user(user_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/users/{user_id}/balance")
-async def update_balance(user_id: str, balance: float):
+async def update_balance(user_id: str, payload: BalanceUpdate):
     """Update user balance"""
     try:
         db.collection("users").document(user_id).update({
-            "balance": balance,
+            "balance": payload.balance,
             "updatedAt": datetime.now().isoformat(),
         })
         return {"success": True}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -207,13 +212,30 @@ async def profile_summary(user_id: str):
         
         # Get all expenses
         expense_docs = db.collection("users").document(user_id).collection("expenses").stream()
-        total_spent = 0
+        total_spent = 0.0
         expenses_count = 0
+        expense_dates = set()
         
         for doc in expense_docs:
-            expense = doc.to_dict()
-            total_spent += expense.get("amount", 0)
+            expense = doc.to_dict() or {}
+            amount = expense.get("amount", 0)
+            try:
+                total_spent += float(amount or 0)
+            except (TypeError, ValueError):
+                total_spent += 0.0
             expenses_count += 1
+            date_value = expense.get("date")
+            if isinstance(date_value, str) and date_value:
+                expense_dates.add(date_value[:10])
+
+        recorded_days = max(len(expense_dates), 1 if expenses_count > 0 else 0)
+        average_daily_spending = (
+            total_spent / recorded_days if recorded_days > 0 else 0.0
+        )
+        average_per_expense = (
+            total_spent / expenses_count if expenses_count > 0 else 0.0
+        )
+        remaining_balance = float(user_data.get("balance", 0) or 0) - total_spent
         
         return {
             "success": True,
@@ -221,9 +243,14 @@ async def profile_summary(user_id: str):
                 "user": user_data,
                 "totalSpent": total_spent,
                 "expenseCount": expenses_count,
-                "remainingBalance": user_data.get("balance", 0) - total_spent
+                "recordedDays": recorded_days,
+                "remainingBalance": remaining_balance,
+                "averageDailySpending": average_daily_spending,
+                "averagePerExpense": average_per_expense,
             }
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

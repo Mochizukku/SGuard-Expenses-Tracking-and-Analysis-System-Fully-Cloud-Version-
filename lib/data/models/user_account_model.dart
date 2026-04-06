@@ -1,4 +1,4 @@
-import 'package:fully_cloud_sguard/domain/entities/user_account.dart';
+import 'package:fully_cloud_sguard/presentation/pages/analysis/domain/entities/user_account.dart';
 
 class UserAccountModel extends UserAccount {
   UserAccountModel({

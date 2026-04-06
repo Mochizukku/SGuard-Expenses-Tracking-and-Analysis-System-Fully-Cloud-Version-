@@ -150,6 +150,10 @@ class _LoginPageState extends State<LoginPage> {
     final borderColor = showError ? Colors.red : const Color(0xFFB8C5D4);
     return InputDecoration(
       labelText: label,
+      labelStyle: const TextStyle(
+        color: Color(0xFF1C3552),
+        fontWeight: FontWeight.w700,
+      ),
       contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(28),
@@ -238,7 +242,7 @@ class _LoginPageState extends State<LoginPage> {
                             'SGUARD',
                             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                               color: Colors.white,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w800,
                               letterSpacing: 1.5,
                             ),
                           ),
@@ -326,7 +330,7 @@ class _LoginPageState extends State<LoginPage> {
                                   style: TextStyle(
                                     color: showCredentialMismatch ? Colors.red : Colors.red.shade700,
                                     fontSize: 13,
-                                    fontWeight: FontWeight.w500,
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
                               ],
@@ -335,7 +339,13 @@ class _LoginPageState extends State<LoginPage> {
                                 alignment: Alignment.centerRight,
                                 child: TextButton(
                                   onPressed: _openReset,
-                                  child: const Text('Reset Password'),
+                                  child: const Text(
+                                    'Reset Password',
+                                    style: TextStyle(
+                                      color: Color(0xFF16304B),
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
                                 ),
                               ),
                               Row(
@@ -350,7 +360,15 @@ class _LoginPageState extends State<LoginPage> {
                                     },
                                   ),
                                   const SizedBox(width: 4),
-                                  const Flexible(child: Text('Remember me')),
+                                  const Flexible(
+                                    child: Text(
+                                      'Remember me',
+                                      style: TextStyle(
+                                        color: Color(0xFF16304B),
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
                                 ],
                               ),
                               const SizedBox(height: 8),
@@ -368,7 +386,10 @@ class _LoginPageState extends State<LoginPage> {
                                       height: 20,
                                       child: CircularProgressIndicator(strokeWidth: 2),
                                     )
-                                    : const Text('LOGIN'),
+                                    : const Text(
+                                      'LOGIN',
+                                      style: TextStyle(fontWeight: FontWeight.w800),
+                                    ),
                               ),
                               const SizedBox(height: 10),
                               OutlinedButton.icon(
@@ -376,7 +397,13 @@ class _LoginPageState extends State<LoginPage> {
                                   _showMessage('Google sign-in is coming soon.');
                                 },
                                 icon: const Icon(Icons.login),
-                                label: const Text('Sign in using Google'),
+                                label: const Text(
+                                  'Sign in using Google',
+                                  style: TextStyle(
+                                    color: Color(0xFF16304B),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
                                 style: OutlinedButton.styleFrom(
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(28),
@@ -390,10 +417,19 @@ class _LoginPageState extends State<LoginPage> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  const Text('Don\'t Have an Account? '),
+                                  const Text(
+                                    'Don\'t Have an Account? ',
+                                    style: TextStyle(
+                                      color: Color(0xFF16304B),
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
                                   TextButton(
                                     onPressed: _openRegister,
-                                    child: const Text('Create an Account'),
+                                    child: const Text(
+                                      'Create an Account',
+                                      style: TextStyle(fontWeight: FontWeight.w800),
+                                    ),
                                   ),
                                 ],
                               ),

@@ -77,13 +77,45 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             seedColor: accentColor,
             brightness: brightness,
           );
+          final baseTextTheme = ThemeData(brightness: brightness).textTheme;
+          final primaryTextColor = brightness == Brightness.dark
+              ? Colors.white
+              : const Color(0xFF12243A);
+          final secondaryTextColor = brightness == Brightness.dark
+              ? Colors.white70
+              : const Color(0xFF324A64);
           return ThemeData(
             colorScheme: scheme,
             scaffoldBackgroundColor: scheme.surface,
             useMaterial3: true,
             pageTransitionsTheme: PageTransitionsTheme(builders: pageTransitions),
-            textTheme: ThemeData(brightness: brightness).textTheme.apply(
+            textTheme: baseTextTheme
+                .apply(
                   fontSizeFactor: textScale,
+                  bodyColor: primaryTextColor,
+                  displayColor: primaryTextColor,
+                )
+                .copyWith(
+                  bodySmall: baseTextTheme.bodySmall?.copyWith(
+                    color: secondaryTextColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  bodyMedium: baseTextTheme.bodyMedium?.copyWith(
+                    color: primaryTextColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  bodyLarge: baseTextTheme.bodyLarge?.copyWith(
+                    color: primaryTextColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  titleSmall: baseTextTheme.titleSmall?.copyWith(
+                    color: primaryTextColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  titleMedium: baseTextTheme.titleMedium?.copyWith(
+                    color: primaryTextColor,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
           );
         }

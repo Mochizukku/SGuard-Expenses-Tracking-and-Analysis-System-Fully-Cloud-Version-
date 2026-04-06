@@ -270,9 +270,16 @@ class _AnalysisPageState extends State<AnalysisPage> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(text, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+          Text(
+            text,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              color: Color(0xFF16304B),
+            ),
+          ),
           const SizedBox(width: 4),
-          const Icon(Icons.keyboard_arrow_down, size: 16),
+          const Icon(Icons.keyboard_arrow_down, size: 16, color: Color(0xFF16304B)),
         ],
       ),
     );
@@ -328,16 +335,17 @@ class _AnalysisPageState extends State<AnalysisPage> {
         chartType: GraphDetailChartType.pie,
         analytics: analytics,
       ),
-      child: SizedBox(
-        height: 120,
-        child: PieChart(
-          PieChartData(
-            sections: sections,
-            centerSpaceRadius: 20,
-            sectionsSpace: 0,
+        child: SizedBox(
+          height: 120,
+          child: PieChart(
+            PieChartData(
+              sections: sections,
+              centerSpaceRadius: 20,
+              sectionsSpace: 0,
+              pieTouchData: PieTouchData(enabled: true),
+            ),
           ),
         ),
-      ),
     );
   }
 
@@ -411,6 +419,29 @@ class _AnalysisPageState extends State<AnalysisPage> {
           BarChartData(
             barGroups: groups,
             borderData: FlBorderData(show: false),
+            barTouchData: BarTouchData(
+              enabled: true,
+              handleBuiltInTouches: true,
+              touchTooltipData: BarTouchTooltipData(
+                tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                getTooltipColor: (_) => const Color(0xFF16304B),
+                getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                  final segmentIndex = group.x.toInt().clamp(0, groups.length - 1);
+                  final segmentStart = start.add(Duration(days: segmentIndex * divDuration));
+                  final segmentEnd = segmentIndex == divisions - 1
+                      ? end
+                      : segmentStart.add(
+                          Duration(days: divDuration - 1, hours: 23, minutes: 59),
+                        );
+                  return BarTooltipItem(
+                    '${_monthShort(segmentStart.month)} ${segmentStart.day} - '
+                    '${_monthShort(segmentEnd.month)} ${segmentEnd.day}\n'
+                    '${rod.toY.toStringAsFixed(2)}',
+                    const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                  );
+                },
+              ),
+            ),
             titlesData: FlTitlesData(
               leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
               rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -423,7 +454,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
                         'W${val.toInt() + 1}',
-                        style: const TextStyle(fontSize: 9, color: Colors.grey),
+                        style: const TextStyle(
+                          fontSize: 9,
+                          color: Color(0xFF4A6078),
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     );
                   },
@@ -480,7 +515,14 @@ class _AnalysisPageState extends State<AnalysisPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(rightTitle, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                        Text(
+                          rightTitle,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                            color: Color(0xFF16304B),
+                          ),
+                        ),
                         const SizedBox(width: 4),
                         trendBuilder(leftData.total, rightData.total),
                       ],
@@ -570,15 +612,21 @@ class _AnalysisPageState extends State<AnalysisPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Spending Progress', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                const Text(
+                  'Spending Progress',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF16304B)),
+                ),
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('$progressPercent%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    Text(
+                      '$progressPercent%',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF16304B)),
+                    ),
                     Text(
                       'for ${_monthShort(today.month)} ${today.day}, ${today.year}',
-                      style: const TextStyle(fontSize: 10, color: Colors.grey),
+                      style: const TextStyle(fontSize: 10, color: Color(0xFF4A6078), fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),
@@ -596,11 +644,14 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 Center(
                   child: Text(
                     '${totalSpent.toStringAsFixed(2)} / ${RecordBookData.balance.toStringAsFixed(2)}',
-                    style: const TextStyle(fontSize: 10, color: Colors.grey),
+                    style: const TextStyle(fontSize: 10, color: Color(0xFF4A6078), fontWeight: FontWeight.w600),
                   ),
                 ),
                 const SizedBox(height: 32),
-                const Text('Spending Comparison', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                const Text(
+                  'Spending Comparison',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF16304B)),
+                ),
                 const SizedBox(height: 24),
                 _buildComparisonRow(
                   leftControl: _buildDateSelector(_formatDailyDate(_dailyDate), () async {

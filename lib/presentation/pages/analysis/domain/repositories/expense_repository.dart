@@ -1,4 +1,4 @@
-import 'package:fully_cloud_sguard/domain/entities/expense.dart';
+import 'package:fully_cloud_sguard/presentation/pages/analysis/domain/entities/expense.dart';
 
 abstract class ExpenseRepository {
   Future<String> addExpense(Expense expense);

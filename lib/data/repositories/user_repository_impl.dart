@@ -1,7 +1,7 @@
 import 'package:fully_cloud_sguard/data/dataresources/firestore_datasource.dart';
 import 'package:fully_cloud_sguard/data/models/user_account_model.dart';
-import 'package:fully_cloud_sguard/domain/entities/user_account.dart';
-import 'package:fully_cloud_sguard/domain/repositories/user_repository.dart';
+import 'package:fully_cloud_sguard/presentation/pages/analysis/domain/entities/user_account.dart';
+import 'package:fully_cloud_sguard/presentation/pages/analysis/domain/repositories/user_repository.dart';
 
 class UserRepositoryImpl implements UserRepository {
   final FirestoreDatasource _datasource;
